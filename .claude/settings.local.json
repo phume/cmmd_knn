@@ -1,0 +1,10 @@
+{
+  "enabledPlugins": {
+    "scientific-skills@claude-scientific-skills": true
+  },
+  "permissions": {
+    "allow": [
+      "WebSearch"
+    ]
+  }
+}
