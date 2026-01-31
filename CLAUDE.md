@@ -7,6 +7,7 @@ This file captures insights, preferences, and notes learned from working on this
 ### Git & Version Control
 - **Commit frequently**: Commit and push after completing any meaningful work (file creation, updates, task completion)
 - **Commit style**: Use descriptive messages like "Add method formalization with pseudocode and complexity analysis"
+- **No co-author line**: Do NOT include "Co-Authored-By: Claude..." in commit messages
 
 ### Task Order
 - **LaTeX before code**: Work on paper/documentation first, then implement code
