@@ -91,24 +91,59 @@ CDIF/
 
 **Key insight**: PNKDIF_noMLP often best - random MLP may hurt on low-dim real data. Swap injection is fundamentally hard (behavior IS normal, just from different context).
 
-## Items Missed from Original Plan (Now Implemented)
+## Phase 4 No-Download Results (COMPLETED)
 
-### Datasets that were missing (now have loaders):
-- **SAML-D** (Synthetic AML) - `src/data/fraud_datasets.py`
-- **IEEE-CIS Fraud** - `src/data/fraud_datasets.py`
-- **PaySim** - `src/data/fraud_datasets.py`
-- **Credit Card Fraud** - `src/data/fraud_datasets.py`
-- **Thyroid (ODDS)** - `src/data/fraud_datasets.py`
-- **Syn-HighDimContext** - `src/data/synthetic.py`
-- **Syn-Cluster** - `src/data/synthetic.py`
+Ran on Syn-HighDimContext, Syn-Cluster, Thyroid with 10 seeds x 12 methods = 360 runs.
 
-### Method variants that were missing (now implemented):
-- **PNKDIF_single** (M=1) - `src/models/pnkdif.py`
-- **PNKDIF_global** (global normalization) - `src/models/pnkdif.py`
+### Syn-HighDimContext (20D context, only 2 informative)
+| Method | AUROC |
+|--------|-------|
+| PNKDIF_uniform | 0.925 |
+| PNKDIF | 0.925 |
+| ROCOD | 0.865 |
+| IF | 0.841 |
+| IF_concat | 0.593 |
 
-### Other items from plan:
-- Seeds: Now using 10 seeds [42, 123, 456, 789, 1011, 1213, 1415, 1617, 1819, 2021]
-- Feature caching: Implemented in fraud_datasets.py (saves to data/cache/)
+**Key insight**: PNKDIF handles high-dim context; concat methods fail.
+
+### Syn-Cluster (5 clusters with cluster-specific behavior)
+| Method | AUROC |
+|--------|-------|
+| PNKDIF_uniform | 0.954 |
+| PNKDIF | 0.953 |
+| ROCOD | 0.947 |
+| IF/PNKDIF_global | 0.50 |
+
+**Key insight**: Context-ignoring methods fail completely.
+
+### Thyroid (ODDS - non-contextual anomalies)
+| Method | AUROC |
+|--------|-------|
+| IF_concat | 0.977 |
+| PNKDIF_global | 0.955 |
+| IF | 0.955 |
+| PNKDIF | 0.703 |
+
+**Key insight**: Thyroid has global anomalies, not contextual. PNKDIF_global outperforms peer-normalized variants.
+
+## Items Implemented
+
+### Datasets (loaders in src/data/):
+- **SAML-D** - `fraud_datasets.py`
+- **IEEE-CIS Fraud** - `fraud_datasets.py`
+- **PaySim** - `fraud_datasets.py`
+- **Credit Card Fraud** - `fraud_datasets.py`
+- **Thyroid (ODDS)** - `fraud_datasets.py` (auto-downloads)
+- **Syn-HighDimContext** - `synthetic.py`
+- **Syn-Cluster** - `synthetic.py`
+
+### Method variants (in src/models/pnkdif.py):
+- **PNKDIF_single** (M=1)
+- **PNKDIF_global** (global normalization)
+
+### Other:
+- 10 seeds: [42, 123, 456, 789, 1011, 1213, 1415, 1617, 1819, 2021]
+- Feature caching: fraud_datasets.py saves to data/cache/
 
 ## Future Tasks
 
@@ -118,7 +153,7 @@ CDIF/
   - PaySim: https://www.kaggle.com/datasets/ealaxi/paysim1
   - Credit Card: https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
 - [ ] Run Phase 4 Extended: `python scripts/run_phase4_extended.py`
-- [ ] Update paper with all results
+- [ ] Update paper experiments section with Phase 4 no-download results
 - [ ] Add statistical testing (Wilcoxon, critical difference diagrams)
 - [ ] γ (kernel bandwidth) sensitivity analysis
 - [ ] Finalize paper for submission

@@ -77,7 +77,7 @@ def load_saml(
     if data_path is None:
         # Try common names
         possible_names = [
-            'SAML_D.csv', 'saml.csv', 'synthetic_aml.csv',
+            'SAML-D.csv', 'SAML_D.csv', 'saml.csv', 'synthetic_aml.csv',
             'HI-Small_Trans.csv', 'transactions.csv'
         ]
         for name in possible_names:
@@ -92,18 +92,17 @@ def load_saml(
         return generate_synthetic_fallback("saml", 10000, 5, 6, 0.05, random_state)
 
     print(f"Loading SAML-D from {data_path}...")
-    df = pd.read_csv(data_path)
 
-    # Sample if needed
-    rng = np.random.RandomState(random_state)
-    if max_samples and len(df) > max_samples:
-        df = df.sample(n=max_samples, random_state=random_state)
-
-    # Identify columns (adapt based on actual schema)
-    # Common SAML-D schema has: Account, Amount, Timestamp, Is_Laundering, etc.
+    # For very large files, use chunked reading with sampling
+    if max_samples:
+        df = pd.read_csv(data_path, nrows=max_samples * 2)  # Read extra for sampling
+        if len(df) > max_samples:
+            df = df.sample(n=max_samples, random_state=random_state)
+    else:
+        df = pd.read_csv(data_path)
 
     # Check for label column
-    label_cols = ['Is_Laundering', 'is_laundering', 'isFraud', 'label', 'Label']
+    label_cols = ['Is_laundering', 'Is_Laundering', 'is_laundering', 'isFraud', 'label', 'Label']
     label_col = None
     for col in label_cols:
         if col in df.columns:
@@ -112,59 +111,47 @@ def load_saml(
 
     if label_col is None:
         print(f"Warning: No label column found. Available: {df.columns.tolist()}")
-        return generate_synthetic_fallback("saml", len(df), 5, 6, 0.05, random_state)
+        return generate_synthetic_fallback("saml", 10000, 5, 6, 0.05, random_state)
 
     labels = df[label_col].values.astype(int)
 
-    # Extract features based on available columns
-    # Context: categorical/identifier features
-    # Behavior: numerical transaction features
+    # SAML-D specific feature extraction
+    # Columns: Time, Date, Sender_account, Receiver_account, Amount,
+    #          Payment_currency, Received_currency, Sender_bank_location,
+    #          Receiver_bank_location, Payment_type, Is_laundering, Laundering_type
 
-    context_candidates = ['Account', 'Account_Type', 'Customer_Type', 'Bank',
-                          'Payment_Type', 'Payment_Format', 'Is_High_Risk_Country']
-    behavior_candidates = ['Amount', 'Amount_Received', 'Amount_Paid',
-                           'Timestamp', 'Transaction_Count']
+    # Context: geographic and payment type info (categorical)
+    context_cols = ['Sender_bank_location', 'Receiver_bank_location',
+                    'Payment_currency', 'Received_currency', 'Payment_type']
+    context_cols = [c for c in context_cols if c in df.columns]
 
-    context_cols = [c for c in context_candidates if c in df.columns]
-    behavior_cols = [c for c in behavior_candidates if c in df.columns]
-
-    # If we have account-level data, aggregate transactions
-    if 'Account' in df.columns and len(context_cols) > 0:
-        # Aggregate to account level
-        agg_dict = {}
-        for col in behavior_cols:
-            if df[col].dtype in [np.float64, np.int64]:
-                agg_dict[col] = ['mean', 'std', 'min', 'max', 'count']
-
-        if agg_dict:
-            account_df = df.groupby('Account').agg(agg_dict)
-            account_df.columns = ['_'.join(col) for col in account_df.columns]
-            account_labels = df.groupby('Account')[label_col].max()  # 1 if any transaction is fraud
-
-            behavior = account_df.values
-            labels = account_labels.values
-
-            # Get context for each account (first occurrence)
-            context_df = df.groupby('Account')[context_cols].first()
-            for col in context_df.select_dtypes(include=['object']).columns:
-                context_df[col] = pd.Categorical(context_df[col]).codes
-            context = context_df.values.astype(float)
-        else:
-            # Fallback: use available numeric columns
-            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            numeric_cols = [c for c in numeric_cols if c != label_col]
-
-            n_ctx = min(5, len(numeric_cols) // 2)
-            context = df[numeric_cols[:n_ctx]].values.astype(float)
-            behavior = df[numeric_cols[n_ctx:]].values.astype(float)
+    if len(context_cols) > 0:
+        context_df = df[context_cols].copy()
+        for col in context_df.columns:
+            context_df[col] = pd.Categorical(context_df[col]).codes
+        context = context_df.values.astype(float)
     else:
-        # Direct feature extraction
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        numeric_cols = [c for c in numeric_cols if c != label_col]
+        # Fallback
+        context = np.zeros((len(df), 1))
 
-        n_ctx = min(5, len(numeric_cols) // 2)
-        context = df[numeric_cols[:n_ctx]].values.astype(float)
-        behavior = df[numeric_cols[n_ctx:]].values.astype(float)
+    # Behavior: Amount and derived features
+    behavior_cols = []
+    if 'Amount' in df.columns:
+        behavior_cols.append('Amount')
+
+    if len(behavior_cols) > 0:
+        behavior = df[behavior_cols].values.astype(float)
+        # Add log-transformed amount as additional feature
+        log_amount = np.log1p(np.abs(behavior))
+        behavior = np.column_stack([behavior, log_amount])
+    else:
+        behavior = np.zeros((len(df), 1))
+
+    # Ensure we have features
+    if context.shape[1] == 0:
+        context = np.zeros((len(df), 1))
+    if behavior.shape[1] == 0:
+        behavior = np.zeros((len(df), 1))
 
     # Handle NaN
     context = np.nan_to_num(context, nan=0.0)
@@ -217,7 +204,18 @@ def load_ieee_cis(
         return cached
 
     if data_path is None:
-        data_path = RAW_DIR / 'train_transaction.csv'
+        # Check multiple possible locations
+        possible_paths = [
+            RAW_DIR / 'train_transaction.csv',
+            RAW_DIR / 'IEEE-CIS Fraud Detection' / 'train_transaction.csv',
+            RAW_DIR / 'ieee-cis' / 'train_transaction.csv',
+        ]
+        for p in possible_paths:
+            if p.exists():
+                data_path = p
+                break
+        if data_path is None:
+            data_path = possible_paths[0]  # For error message
 
     if not Path(data_path).exists():
         print("IEEE-CIS data not found. Please download from:")
@@ -300,7 +298,11 @@ def load_paysim(
 
     if data_path is None:
         # Try common names
-        possible_names = ['PS_20174392719_1491204439457_log.csv', 'paysim.csv', 'PaySim.csv']
+        possible_names = [
+            'Synthetic Financial Datasets For Fraud Detection.csv',
+            'PS_20174392719_1491204439457_log.csv',
+            'paysim.csv', 'PaySim.csv'
+        ]
         for name in possible_names:
             if (RAW_DIR / name).exists():
                 data_path = RAW_DIR / name
@@ -376,7 +378,18 @@ def load_creditcard(
         return cached
 
     if data_path is None:
-        data_path = RAW_DIR / 'creditcard.csv'
+        # Try common names
+        possible_names = [
+            'creditcard.csv',
+            'Credit Card Fraud Detection.csv',
+            'credit_card.csv'
+        ]
+        for name in possible_names:
+            if (RAW_DIR / name).exists():
+                data_path = RAW_DIR / name
+                break
+        if data_path is None:
+            data_path = RAW_DIR / 'creditcard.csv'  # For error message
 
     if not Path(data_path).exists():
         print("Credit Card Fraud data not found. Please download from:")
@@ -418,8 +431,9 @@ def load_thyroid(random_state: Optional[int] = None) -> Tuple[np.ndarray, np.nda
     """
     Load Thyroid dataset from ODDS.
 
-    Context: First 6 features (demographic/test type)
-    Behavior: Remaining 15 features (measurements)
+    The ODDS thyroid dataset has 6 features total.
+    Context: First 3 features (demographic/test type)
+    Behavior: Last 3 features (measurements)
     """
     import urllib.request
     from scipy.io import loadmat
@@ -444,9 +458,18 @@ def load_thyroid(random_state: Optional[int] = None) -> Tuple[np.ndarray, np.nda
     X = data['X']
     y = data['y'].ravel()
 
-    # Split: first 6 = context, rest = behavior
-    context = X[:, :6]
-    behavior = X[:, 6:]
+    # Thyroid from ODDS has 6 features total
+    # Split: first 3 = context (demographic), last 3 = behavior (measurements)
+    n_features = X.shape[1]
+    n_context = n_features // 2  # Use half for context
+    context = X[:, :n_context]
+    behavior = X[:, n_context:]
+
+    # Ensure we have at least 1 feature in each
+    if behavior.shape[1] == 0:
+        # Fallback: use first feature as context, rest as behavior
+        context = X[:, :1]
+        behavior = X[:, 1:]
 
     # Standardize
     context = (context - context.mean(axis=0)) / (context.std(axis=0) + 1e-8)

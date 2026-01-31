@@ -1,16 +1,10 @@
 """
-Phase 4 Extended: All missing datasets from the experimental plan.
-
-Includes:
-- SAML-D (Synthetic AML)
-- IEEE-CIS Fraud Detection
-- PaySim
-- Credit Card Fraud
-- Thyroid (ODDS)
+Phase 4 - Datasets that don't require manual download:
 - Syn-HighDimContext
 - Syn-Cluster
+- Thyroid (auto-downloads from ODDS)
 
-Uses 10 seeds as per the plan.
+10 seeds, 12 methods.
 """
 
 import sys
@@ -27,9 +21,8 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / 'src'))
 
 import numpy as np
-from data.synthetic import get_dataset, SYNTHETIC_DATASETS
-from data.fraud_datasets import get_fraud_dataset, FRAUD_DATASETS
-from data.real_datasets import get_real_dataset, REAL_DATASETS
+from data.synthetic import get_dataset
+from data.fraud_datasets import load_thyroid
 from models.baselines import get_method
 from models.pnkdif import (PNKDIF, PNKDIFConfig, PNKDIFUniform, PNKDIFNoMLP,
                             PNKDIFSingle, PNKDIFGlobal)
@@ -39,21 +32,19 @@ from evaluation.metrics import compute_metrics
 # CONFIGURATION
 # =============================================================================
 
-SEEDS = [42, 123, 456, 789, 1011, 1213, 1415, 1617, 1819, 2021]  # 10 seeds as per plan
+SEEDS = [42, 123, 456, 789, 1011, 1213, 1415, 1617, 1819, 2021]
 K_FOR_P_AT_K = 100
 
-# Datasets to run
-SYNTHETIC_EXTRA = ['syn_highdim_context', 'syn_cluster']
-FRAUD_EXTRA = ['saml', 'ieee_cis', 'paysim', 'creditcard', 'thyroid']
+DATASETS = ['syn_highdim_context', 'syn_cluster', 'thyroid']
 
 # Paths
 RESULTS_DIR = ROOT / 'results'
 LOGS_DIR = ROOT / 'logs'
-RAW_CSV = RESULTS_DIR / 'phase4_extended_raw.csv'
-SUMMARY_CSV = RESULTS_DIR / 'phase4_extended_summary.csv'
-ERRORS_CSV = RESULTS_DIR / 'phase4_extended_errors.csv'
-STATE_FILE = RESULTS_DIR / 'phase4_extended_state.json'
-LOG_FILE = LOGS_DIR / 'phase4_extended.log'
+RAW_CSV = RESULTS_DIR / 'phase4_nodownload_raw.csv'
+SUMMARY_CSV = RESULTS_DIR / 'phase4_nodownload_summary.csv'
+ERRORS_CSV = RESULTS_DIR / 'phase4_nodownload_errors.csv'
+STATE_FILE = RESULTS_DIR / 'phase4_nodownload_state.json'
+LOG_FILE = LOGS_DIR / 'phase4_nodownload.log'
 
 # =============================================================================
 # LOGGING
@@ -116,7 +107,6 @@ def append_csv(filepath, row):
 # =============================================================================
 
 def get_all_methods(seed, n_samples):
-    """Return dict of method_name -> model instance."""
     K = min(100, n_samples // 20)
     config = PNKDIFConfig(n_neighbors=K, random_state=seed)
 
@@ -140,41 +130,20 @@ def get_all_methods(seed, n_samples):
 # =============================================================================
 
 def load_dataset(dataset_name, seed):
-    """Load dataset by name, handling different sources."""
-
-    # Synthetic datasets
-    if dataset_name in SYNTHETIC_DATASETS:
+    if dataset_name == 'thyroid':
+        return load_thyroid(random_state=seed)
+    else:
         return get_dataset(dataset_name, random_state=seed)
 
-    # Real datasets (Adult, Bank, Cardio)
-    if dataset_name in REAL_DATASETS:
-        return get_real_dataset(dataset_name, random_state=seed)
-
-    # Fraud datasets with max_samples for large datasets
-    if dataset_name in FRAUD_DATASETS:
-        # Use max_samples for very large datasets
-        if dataset_name == 'saml':
-            return get_fraud_dataset(dataset_name, random_state=seed, max_samples=100000)
-        elif dataset_name == 'paysim':
-            return get_fraud_dataset(dataset_name, random_state=seed, max_samples=100000)
-        else:
-            return get_fraud_dataset(dataset_name, random_state=seed)
-
-    raise ValueError(f"Unknown dataset: {dataset_name}")
-
 # =============================================================================
-# MAIN RUNNER
+# MAIN
 # =============================================================================
 
 def run_experiments():
     logger.info("=" * 60)
-    logger.info("PHASE 4 EXTENDED: All Missing Datasets")
+    logger.info("PHASE 4 (No Download Required)")
     logger.info("=" * 60)
-
-    # Datasets to run
-    all_datasets = SYNTHETIC_EXTRA + FRAUD_EXTRA
-
-    logger.info(f"Datasets: {all_datasets}")
+    logger.info(f"Datasets: {DATASETS}")
     logger.info(f"Seeds: {SEEDS}")
 
     state = load_state()
@@ -183,18 +152,17 @@ def run_experiments():
     init_csv(RAW_CSV, RAW_HEADERS)
     init_csv(ERRORS_CSV, ERROR_HEADERS)
 
-    n_methods = 12  # All method variants
-    total_runs = len(all_datasets) * len(SEEDS) * n_methods
+    n_methods = 12
+    total_runs = len(DATASETS) * len(SEEDS) * n_methods
     run_idx = 0
 
-    for dataset_name in all_datasets:
+    for dataset_name in DATASETS:
         logger.info(f"\n{'='*60}")
         logger.info(f"Dataset: {dataset_name}")
         logger.info("=" * 60)
 
         for seed in SEEDS:
             try:
-                # Load dataset
                 context, behavior, labels = load_dataset(dataset_name, seed)
                 n_samples = len(labels)
                 n_context = context.shape[1] if context.ndim > 1 else 1
@@ -254,12 +222,8 @@ def run_experiments():
     logger.info("\n" + "=" * 60)
     logger.info("Generating summary...")
     generate_summary()
-    logger.info("Phase 4 Extended complete!")
+    logger.info("Complete!")
 
-
-# =============================================================================
-# SUMMARY
-# =============================================================================
 
 def generate_summary():
     import pandas as pd
@@ -273,10 +237,8 @@ def generate_summary():
     summary_rows = []
     for dataset in df['dataset'].unique():
         ds_df = df[df['dataset'] == dataset]
-
         for method in ds_df['method'].unique():
             m_df = ds_df[ds_df['method'] == method]
-
             summary_rows.append({
                 'dataset': dataset,
                 'method': method,
@@ -294,11 +256,9 @@ def generate_summary():
     summary_df.to_csv(SUMMARY_CSV, index=False)
     logger.info(f"Summary saved to {SUMMARY_CSV}")
 
-    # Print summary
     print("\n" + "=" * 80)
-    print("PHASE 4 EXTENDED SUMMARY")
+    print("SUMMARY")
     print("=" * 80)
-
     for dataset in df['dataset'].unique():
         print(f"\n{dataset.upper()}")
         print("-" * 60)
