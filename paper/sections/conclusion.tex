@@ -1,3 +1,31 @@
 \section{Conclusion}
+\label{sec:conclusion}
 
-% Write your conclusion here
+We presented Peer-Normalized Kernel Deep Isolation Forest (PNKDIF), a novel approach to contextual anomaly detection that achieves non-linear decision boundaries without requiring any training. By combining kernel-weighted peer normalization with frozen random MLP projections and Isolation Forest scoring, PNKDIF bridges the gap between simple training-free methods and expressive deep learning approaches.
+
+Our key contributions include:
+\begin{enumerate}
+    \item A kernel-weighted peer normalization scheme that provides soft weighting of contextually similar samples, improving upon hard K-NN cutoffs used in prior work.
+    \item The integration of random neural projections with peer-based normalization, enabling non-linear anomaly detection in the contextual setting.
+    \item A fully training-free pipeline that avoids the hyperparameter sensitivity and potential overfitting of learned approaches.
+\end{enumerate}
+
+The method scales to large datasets with $O(N \log N)$ complexity and is highly parallelizable. The peer-based normalization also provides interpretability: for any flagged sample, we can retrieve its peer group and show what ``normal'' behavior looks like in that context.
+
+\subsection{Future Work}
+
+Several directions merit further investigation:
+
+\begin{itemize}
+    \item \textbf{Learned context representations}: While our method uses raw context features for K-NN, learning a context embedding (e.g., via contrastive learning) could improve peer selection, especially for high-dimensional or heterogeneous context spaces.
+
+    \item \textbf{Adaptive kernel bandwidth}: The current approach uses a global bandwidth $\gamma$. Local bandwidth adaptation based on neighborhood density could improve performance in contexts with varying scales.
+
+    \item \textbf{Streaming and incremental updates}: Extending PNKDIF to handle streaming data, where new samples arrive and peer statistics must be updated incrementally, would broaden applicability.
+
+    \item \textbf{Theoretical analysis}: Formal analysis of the approximation properties of frozen random projections in the contextual anomaly detection setting would strengthen the theoretical foundation.
+
+    \item \textbf{Multi-modal context}: Extending the framework to handle context features from different modalities (e.g., text, images, graphs) via appropriate embeddings.
+\end{itemize}
+
+PNKDIF demonstrates that effective contextual anomaly detection does not require complex training procedures. By leveraging the power of random projections and the efficiency of Isolation Forest, we achieve competitive performance with minimal computational overhead and no risk of overfitting to training data distributions.

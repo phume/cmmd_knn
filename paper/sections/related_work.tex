@@ -1,3 +1,57 @@
 \section{Related Work}
+\label{sec:related}
 
-% Write your related work section here
+\subsection{Traditional Anomaly Detection}
+
+Classical anomaly detection methods operate on the full feature space without distinguishing context from behavior. \textbf{Isolation Forest (IF)} \cite{liu2008isolation} isolates anomalies by recursively partitioning data with random axis-aligned splits; points requiring fewer splits to isolate are considered more anomalous. IF is efficient ($O(N \log N)$) and requires no density estimation, but its axis-aligned cuts limit expressiveness in the original feature space.
+
+\textbf{Local Outlier Factor (LOF)} \cite{breunig2000lof} compares each point's local density to its neighbors, flagging points in sparser regions. While LOF is inherently local, it does not distinguish between context and behavioral features---all dimensions contribute equally to neighbor selection and density estimation.
+
+\textbf{One-Class SVM} \cite{scholkopf2001estimating} learns a decision boundary enclosing normal data in kernel space. Though capable of non-linear boundaries, it requires careful kernel selection and is computationally expensive for large datasets.
+
+\subsection{Deep Learning for Anomaly Detection}
+
+\textbf{Deep Isolation Forest (DIF)} \cite{xu2023deep} extends IF by first projecting data through randomly-initialized neural networks, then applying IF to the transformed representations. The random projections create non-linear isolation boundaries without training. Our method adapts this idea for the contextual setting, applying random projections after peer normalization.
+
+\textbf{Autoencoders} detect anomalies via reconstruction error, with variants including Variational Autoencoders (VAE) \cite{kingma2014auto} and adversarial approaches \cite{zenati2018adversarially}. These methods learn global representations and do not naturally accommodate context-dependent behavior.
+
+\subsection{Contextual Anomaly Detection}
+
+\textbf{QCAD} \cite{liang2021conditional} (Quantile-based Conditional Anomaly Detection) estimates conditional quantiles of behavioral features given context via K-NN. Points outside expected quantile ranges are flagged as anomalies. QCAD is training-free but limited to detecting univariate deviations in each behavioral dimension independently.
+
+\textbf{ROCOD} \cite{liang2023rocod} (Robust Conditional Outlier Detection) extends peer-based methods with robust statistics and density-weighted combinations. Like QCAD, it uses hard K-NN peer selection and linear (location-scale) normalization.
+
+\textbf{Conditional VAE/CVAE} \cite{sohn2015learning} conditions the latent space on context features, learning to reconstruct behavior given context. Anomalies have high reconstruction error. While expressive, CVAEs require substantial training data and careful architecture design.
+
+\textbf{Context-aware Wasserstein Autoencoder (CWAE)} uses optimal transport objectives for conditional generation, providing sharper density estimates than VAE-based methods. However, training remains a bottleneck.
+
+\textbf{Normalcy Score (NS)} methods compute z-scores relative to predicted behavior, where predictions come from regression or other supervised models trained on normal data. These approaches assume access to clean training data and labeled contexts.
+
+\subsection{Random Feature Methods}
+
+\textbf{Random Fourier Features} \cite{rahimi2007random} approximate shift-invariant kernels via random projections, enabling kernel methods to scale to large datasets. This theoretical foundation---that random projections can approximate complex functions---motivates our use of frozen MLPs.
+
+\textbf{Extreme Learning Machines} \cite{huang2006extreme} use single-layer networks with random hidden weights, training only the output layer. Our approach goes further by eliminating all training, using random projections purely for feature transformation before IF scoring.
+
+\subsection{Positioning of PNKDIF}
+
+Table~\ref{tab:comparison} positions PNKDIF relative to existing methods. Our method uniquely combines: (1) context-awareness via peer normalization, (2) non-linear decision boundaries via random projections, and (3) training-free operation.
+
+\begin{table}[h]
+\centering
+\caption{Comparison of anomaly detection methods}
+\label{tab:comparison}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Method & Context-Aware & Non-Linear & Training-Free \\
+\midrule
+IF \cite{liu2008isolation} & \texttimes & \texttimes & \checkmark \\
+DIF \cite{xu2023deep} & \texttimes & \checkmark & \checkmark \\
+QCAD \cite{liang2021conditional} & \checkmark & \texttimes & \checkmark \\
+ROCOD \cite{liang2023rocod} & \checkmark & \texttimes & \checkmark \\
+CVAE \cite{sohn2015learning} & \checkmark & \checkmark & \texttimes \\
+CWAE & \checkmark & \checkmark & \texttimes \\
+\textbf{PNKDIF (Ours)} & \checkmark & \checkmark & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{table}

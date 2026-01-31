@@ -1,3 +1,56 @@
 \section{Discussion}
+\label{sec:discussion}
 
-% Write your discussion section here
+\subsection{Design Rationale}
+
+\subsubsection{Why K-NN for Peer Selection?}
+K-nearest neighbors provides a non-parametric approach to identifying contextually similar samples. Unlike radius-based methods, K-NN guarantees a fixed peer group size regardless of local density variations. This is important for stable statistics computation---radius-based neighbors can produce empty or extremely large peer groups depending on context space density. K-NN also yields interpretable peer groups: ``the K most similar entities'' is a domain-meaningful concept in applications like fraud detection or anomaly monitoring.
+
+\subsubsection{Why RBF Kernel Weighting Instead of Uniform?}
+While K-NN identifies the peer set, uniform weighting treats the nearest and K-th nearest neighbor equally. RBF kernel weighting introduces soft boundaries: closer peers contribute more to the mean and variance estimates. This has two benefits: (1) it avoids discontinuities at the K-th neighbor cutoff, producing smoother anomaly score surfaces as points move in context space; (2) it down-weights peers that are contextually similar but not identical, reducing the influence of marginally relevant reference points.
+
+\subsubsection{Why Z-Score Normalization?}
+Z-score normalization encodes the assumption that context affects behavior through location (shift) and scale effects. This assumption holds in many practical settings: larger companies have larger transactions, athletes have higher baseline heart rates, etc. The z-score has a direct interpretation---``2.5 standard deviations above the peer mean''---which aids explainability. Alternative approaches like quantile normalization are more robust to non-Gaussian distributions but lose magnitude information that may be relevant for anomaly detection.
+
+\subsubsection{Why Frozen Random MLPs?}
+Training neural networks for anomaly detection faces a fundamental challenge: without labeled anomalies, what objective should be optimized? Autoencoders learn to reconstruct the training distribution, potentially learning to reconstruct (and thus miss) rare anomalies. Our frozen random projections sidestep this by making no assumptions about anomaly patterns. The theoretical justification comes from random feature methods \cite{rahimi2007random}: random projections can approximate kernel evaluations, providing non-linear decision boundaries without optimization. Each random initialization emphasizes different feature interactions, and the ensemble averages out pathological projections.
+
+\subsubsection{Why Isolation Forest as Final Scorer?}
+Isolation Forest is well-suited to high-dimensional transformed spaces where density estimation fails. Its $O(\log \psi)$ query time makes scoring efficient, and its path-length semantics are interpretable: anomalies are ``easier to isolate.'' In the MLP-transformed space, IF's axis-aligned cuts become curved boundaries in the original z-score space, capturing non-linear anomaly patterns.
+
+\subsection{Limitations}
+
+\subsubsection{Curse of Dimensionality in Context Space}
+When context features are high-dimensional, K-NN becomes unreliable as distances concentrate and neighborhoods become sparse. This can lead to unstable peer statistics. Potential mitigations include dimensionality reduction on context features (e.g., PCA, autoencoders) or careful feature selection based on domain knowledge.
+
+\subsubsection{Simple Context-Behavior Relationship}
+Our z-score normalization assumes context affects behavior through shift and scale. This cannot capture complex conditional relationships where context changes the shape of the behavioral distribution (e.g., bimodal distributions in some contexts but unimodal in others). Deep learning approaches like CVAE can learn such complex mappings but at the cost of training requirements and potential overfitting.
+
+\subsubsection{Pre-defined Distance Metric}
+K-NN requires a meaningful distance metric in context space. For continuous features, Euclidean distance is standard, but mixed feature types (categorical + continuous) require careful encoding. The method does not learn an optimal metric, unlike metric learning approaches.
+
+\subsubsection{Homogeneous Peer Edge Case}
+When all K peers have identical behavioral values, the peer standard deviation is zero. We handle this with an $\epsilon$ floor, which results in very large z-scores for any deviation. This behavior is arguably correct---deviation from a perfectly homogeneous peer group is suspicious---but may produce extreme scores in edge cases.
+
+\subsection{Hyperparameter Sensitivity}
+
+The method introduces several hyperparameters:
+\begin{itemize}
+    \item $K$ (neighbors): Too small leads to noisy statistics; too large loses locality and context specificity. We recommend $K \in [50, 200]$ for typical dataset sizes.
+    \item $\gamma$ (bandwidth): Too small means only the nearest neighbor matters; too large approaches uniform weighting. The median heuristic provides a reasonable default.
+    \item $M$ (projections): Diminishing returns beyond $M \approx 6\text{--}10$. More projections increase robustness but also computation.
+    \item $d_h$ (hidden dimension): Larger dimensions are more expressive but may overfit to noise in the random projection. We recommend $d_h \in [64, 256]$.
+\end{itemize}
+
+Empirically, PNKDIF is less sensitive to hyperparameters than training-based methods, as there is no learning rate, batch size, or early stopping to tune.
+
+\subsection{Interpretability}
+
+PNKDIF offers partial interpretability:
+\begin{itemize}
+    \item \textbf{Peer-level}: For any flagged sample, we can retrieve its peer group and show the peer mean/std, explaining what ``normal'' behavior looks like for similar contexts.
+    \item \textbf{Z-score level}: The normalized features show which behavioral dimensions deviate most from peer expectations.
+    \item \textbf{Score-level}: The final score indicates relative anomalousness within the dataset.
+\end{itemize}
+
+However, the random MLP projections and IF path lengths are not directly interpretable. Understanding \emph{why} IF flagged a point in the transformed space requires examining the learned (random) feature interactions, which is non-trivial.

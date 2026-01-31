@@ -1,3 +1,33 @@
 \section{Introduction}
 
-% Write your introduction here
+Anomaly detection is a fundamental task in machine learning with applications spanning fraud detection, network intrusion detection, medical diagnosis, and quality control. Traditional approaches treat all samples uniformly, comparing each observation against global statistics or decision boundaries learned from the entire dataset. However, this global perspective fails when the definition of ``normal'' varies systematically across different contexts.
+
+Consider fraud detection in financial transactions: a \$50,000 wire transfer may be perfectly normal for a corporate account but highly suspicious for a college student. Similarly, a heart rate of 180 bpm is alarming at rest but expected during intense exercise. In both cases, the behavioral features (transaction amount, heart rate) must be interpreted relative to the context features (account type, activity level) to accurately assess anomalousness.
+
+This observation motivates \emph{contextual anomaly detection} (CAD), where the goal is to identify samples whose behavioral features deviate from what is expected given their context. Formally, rather than modeling the marginal distribution $P(Y)$, we seek to model the conditional distribution $P(Y|C)$ and flag samples where $y$ is unlikely given $c$.
+
+Existing CAD methods face a fundamental trade-off between expressiveness and simplicity:
+\begin{itemize}
+    \item \textbf{Training-based methods} such as Conditional Variational Autoencoders (CVAE) \cite{sohn2015learning} and Context-aware Wasserstein Autoencoders (CWAE) can learn complex non-linear relationships between context and behavior, but require careful architecture design, hyperparameter tuning, and may overfit or learn to ignore rare anomaly patterns.
+    \item \textbf{Training-free methods} such as ROCOD \cite{liang2023rocod} and QCAD \cite{liang2021conditional} avoid these pitfalls but are limited to linear decision boundaries in the behavioral feature space, potentially missing anomalies with complex multivariate structure.
+\end{itemize}
+
+In this paper, we propose \textbf{Peer-Normalized Kernel Deep Isolation Forest (PNKDIF)}, a method that achieves the best of both worlds: non-linear decision boundaries without training. Our approach builds on three key ideas:
+
+\begin{enumerate}
+    \item \textbf{Kernel-weighted peer normalization}: We identify each sample's contextually similar peers via K-nearest neighbors and compute RBF kernel-weighted statistics. Z-score normalization against these peer statistics removes context-dependent location and scale effects.
+
+    \item \textbf{Frozen random projections}: Inspired by random feature methods \cite{rahimi2007random} and Deep Isolation Forest \cite{xu2023deep}, we project normalized features through multiple frozen randomly-initialized MLPs. These create diverse non-linear representations without any optimization.
+
+    \item \textbf{Ensemble Isolation Forest scoring}: We apply Isolation Forest to each projected representation and aggregate scores. The axis-aligned cuts of IF in the transformed space correspond to non-linear boundaries in the original space.
+\end{enumerate}
+
+\noindent\textbf{Contributions.} Our main contributions are:
+\begin{itemize}
+    \item We propose PNKDIF, the first training-free contextual anomaly detection method with non-linear decision boundaries.
+    \item We introduce kernel-weighted peer normalization, which provides soft peer weighting via RBF kernels rather than hard K-NN cutoffs.
+    \item We demonstrate that frozen random MLP projections, combined with Isolation Forest, can capture complex anomaly patterns without any learned parameters.
+    \item We provide theoretical analysis of computational complexity and empirical evaluation on benchmark datasets.
+\end{itemize}
+
+The remainder of this paper is organized as follows. Section~\ref{sec:related} reviews related work in anomaly detection. Section~\ref{sec:method} presents the PNKDIF algorithm in detail. Section~\ref{sec:experiments} describes our experimental setup and results. Section~\ref{sec:discussion} discusses design choices and limitations. Section~\ref{sec:conclusion} concludes.

@@ -5,13 +5,24 @@
 \usepackage{amssymb}
 \usepackage{booktabs}
 \usepackage{hyperref}
+\usepackage{algorithm}
+\usepackage{algorithmic}
 
-\title{Your Paper Title}
-\author{Author Name}
+\title{PNKDIF: Peer-Normalized Kernel Deep Isolation Forest for Training-Free Contextual Anomaly Detection}
+
+\author{
+\IEEEauthorblockN{Author Name}
+\IEEEauthorblockA{Affiliation\\
+Email}
+}
 
 \begin{document}
 
 \maketitle
+
+\begin{abstract}
+Contextual anomaly detection aims to identify samples whose behavioral features deviate from expectations given their context. Existing methods face a trade-off: training-based approaches like Conditional VAEs can model complex context-behavior relationships but require optimization and risk overfitting, while training-free methods like QCAD and ROCOD avoid these issues but are limited to linear decision boundaries. We propose Peer-Normalized Kernel Deep Isolation Forest (PNKDIF), a training-free method that achieves non-linear decision boundaries. PNKDIF first identifies contextually similar peers via K-nearest neighbors with RBF kernel weighting, then normalizes behavioral features against peer statistics. The normalized features are projected through multiple frozen randomly-initialized MLPs, creating diverse non-linear representations. Isolation Forest scores on each representation are aggregated to produce the final anomaly score. Our approach combines the expressiveness of deep learning with the simplicity and robustness of training-free methods. We demonstrate competitive performance on benchmark datasets while maintaining $O(N \log N)$ computational complexity and requiring no hyperparameter tuning for learning.
+\end{abstract}
 
 \input{sections/introduction}
 \input{sections/related_work}
