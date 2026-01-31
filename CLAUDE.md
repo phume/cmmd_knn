@@ -91,10 +91,36 @@ CDIF/
 
 **Key insight**: PNKDIF_noMLP often best - random MLP may hurt on low-dim real data. Swap injection is fundamentally hard (behavior IS normal, just from different context).
 
+## Items Missed from Original Plan (Now Implemented)
+
+### Datasets that were missing (now have loaders):
+- **SAML-D** (Synthetic AML) - `src/data/fraud_datasets.py`
+- **IEEE-CIS Fraud** - `src/data/fraud_datasets.py`
+- **PaySim** - `src/data/fraud_datasets.py`
+- **Credit Card Fraud** - `src/data/fraud_datasets.py`
+- **Thyroid (ODDS)** - `src/data/fraud_datasets.py`
+- **Syn-HighDimContext** - `src/data/synthetic.py`
+- **Syn-Cluster** - `src/data/synthetic.py`
+
+### Method variants that were missing (now implemented):
+- **PNKDIF_single** (M=1) - `src/models/pnkdif.py`
+- **PNKDIF_global** (global normalization) - `src/models/pnkdif.py`
+
+### Other items from plan:
+- Seeds: Now using 10 seeds [42, 123, 456, 789, 1011, 1213, 1415, 1617, 1819, 2021]
+- Feature caching: Implemented in fraud_datasets.py (saves to data/cache/)
+
 ## Future Tasks
 
-- [ ] Generate plots for paper (PR curves, bar plots, scaling figure)
-- [ ] Update paper with experimental results
+- [ ] **Download fraud datasets** (user needs to download from Kaggle):
+  - SAML-D: https://www.kaggle.com/datasets/berkanoztas/synthetic-transaction-monitoring-dataset-aml
+  - IEEE-CIS: https://www.kaggle.com/competitions/ieee-fraud-detection
+  - PaySim: https://www.kaggle.com/datasets/ealaxi/paysim1
+  - Credit Card: https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
+- [ ] Run Phase 4 Extended: `python scripts/run_phase4_extended.py`
+- [ ] Update paper with all results
+- [ ] Add statistical testing (Wilcoxon, critical difference diagrams)
+- [ ] γ (kernel bandwidth) sensitivity analysis
 - [ ] Finalize paper for submission
 
 ## Experiment Runner Notes

@@ -212,3 +212,97 @@ class PNKDIFNoMLP(PNKDIF):
         )
         if_model.fit(z)
         return -if_model.score_samples(z)
+
+
+class PNKDIFSingle(PNKDIF):
+    """PNKDIF with single projection (M=1) - ablation."""
+
+    def fit_predict(self, context: np.ndarray, behavior: np.ndarray) -> np.ndarray:
+        context = np.asarray(context)
+        behavior = np.asarray(behavior)
+        if context.ndim == 1:
+            context = context.reshape(-1, 1)
+        if behavior.ndim == 1:
+            behavior = behavior.reshape(-1, 1)
+
+        n_samples = len(context)
+        K = min(self.config.n_neighbors, n_samples - 1)
+
+        bandwidth = self.config.kernel_bandwidth
+        if bandwidth is None:
+            bandwidth = self._compute_bandwidth(context)
+
+        nn = NearestNeighbors(n_neighbors=K + 1, algorithm='auto')
+        nn.fit(context)
+        distances, indices = nn.kneighbors(context)
+        peer_idx = indices[:, 1:]
+        peer_dist = distances[:, 1:]
+
+        weights = np.exp(-peer_dist**2 / (2 * bandwidth**2))
+        weight_sum = weights.sum(axis=1, keepdims=True) + self.config.epsilon
+        norm_weights = weights / weight_sum
+
+        peer_behavior = behavior[peer_idx]
+        mu = (norm_weights[:, :, np.newaxis] * peer_behavior).sum(axis=1)
+        deviations = peer_behavior - mu[:, np.newaxis, :]
+        variance = (norm_weights[:, :, np.newaxis] * deviations**2).sum(axis=1)
+        sigma = np.sqrt(variance) + self.config.epsilon
+
+        z = (behavior - mu) / sigma
+
+        # Single projection only
+        d_y = behavior.shape[1]
+        W = self._rng.randn(d_y, self.config.hidden_dim) * np.sqrt(2.0 / d_y)
+        h = z @ W
+        h = np.where(h > 0, h, 0.01 * h)  # LeakyReLU
+
+        if_model = IsolationForest(
+            n_estimators=self.config.n_trees,
+            max_samples=min(self.config.subsample_size, n_samples),
+            random_state=self._rng.randint(0, 2**31),
+            contamination='auto'
+        )
+        if_model.fit(h)
+        return -if_model.score_samples(h)
+
+
+class PNKDIFGlobal(PNKDIF):
+    """PNKDIF with global normalization instead of peer-based (ablation)."""
+
+    def fit_predict(self, context: np.ndarray, behavior: np.ndarray) -> np.ndarray:
+        context = np.asarray(context)
+        behavior = np.asarray(behavior)
+        if context.ndim == 1:
+            context = context.reshape(-1, 1)
+        if behavior.ndim == 1:
+            behavior = behavior.reshape(-1, 1)
+
+        n_samples = len(context)
+
+        # Global normalization (ignores context)
+        mu = behavior.mean(axis=0)
+        sigma = behavior.std(axis=0) + self.config.epsilon
+        z = (behavior - mu) / sigma
+
+        # Random MLP projections
+        d_y = behavior.shape[1]
+        projections = []
+        for _ in range(self.config.n_projections):
+            W = self._rng.randn(d_y, self.config.hidden_dim) * np.sqrt(2.0 / d_y)
+            h = z @ W
+            h = np.where(h > 0, h, 0.01 * h)
+            projections.append(h)
+
+        all_scores = []
+        for h in projections:
+            if_model = IsolationForest(
+                n_estimators=self.config.n_trees,
+                max_samples=min(self.config.subsample_size, n_samples),
+                random_state=self._rng.randint(0, 2**31),
+                contamination='auto'
+            )
+            if_model.fit(h)
+            scores = -if_model.score_samples(h)
+            all_scores.append(scores)
+
+        return np.mean(all_scores, axis=0)

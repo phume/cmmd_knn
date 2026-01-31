@@ -208,12 +208,136 @@ def generate_syn_nonlinear(
     return context, behavior, labels
 
 
+def generate_syn_highdim_context(
+    n_samples: int = 10000,
+    d_context: int = 20,
+    d_informative: int = 2,
+    anomaly_rate: float = 0.05,
+    random_state: Optional[int] = None
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Syn-HighDimContext: Test curse of dimensionality.
+
+    Context: d_context dimensions, but only d_informative are relevant
+    Tests K-NN degradation in high-dimensional spaces.
+
+    Returns:
+        context, behavior, labels
+    """
+    rng = np.random.RandomState(random_state)
+
+    n_anomalies = int(n_samples * anomaly_rate)
+
+    # High-dim context with sparse informative structure
+    context = rng.randn(n_samples, d_context)
+
+    # Only first d_informative dimensions affect behavior
+    informative_context = context[:, :d_informative]
+
+    # Behavior depends on informative context
+    behavior = np.column_stack([
+        2 * informative_context[:, 0] + rng.randn(n_samples) * 0.5,
+        informative_context.sum(axis=1) + rng.randn(n_samples) * 0.5,
+        np.sin(informative_context[:, 0]) * 3 + rng.randn(n_samples) * 0.3
+    ])
+
+    # Labels
+    labels = np.zeros(n_samples)
+    anomaly_idx = rng.choice(n_samples, n_anomalies, replace=False)
+    labels[anomaly_idx] = 1
+
+    # Anomaly: shift behavior relative to informative context peers
+    for idx in anomaly_idx:
+        # Find similar points in informative space
+        dists = np.linalg.norm(informative_context - informative_context[idx], axis=1)
+        peer_idx = np.argsort(dists)[1:51]  # 50 nearest
+        peer_std = behavior[peer_idx].std(axis=0)
+        shift = rng.choice([-1, 1], size=3) * 3 * peer_std
+        behavior[idx] += shift
+
+    return context, behavior, labels
+
+
+def generate_syn_cluster(
+    n_samples: int = 10000,
+    n_clusters: int = 5,
+    anomaly_rate: float = 0.05,
+    random_state: Optional[int] = None
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Syn-Cluster: Clustered context space.
+
+    Context: 5 Gaussian clusters with different behavior distributions
+    Anomaly: Normal behavior for WRONG cluster (contextual swap)
+
+    Returns:
+        context, behavior, labels
+    """
+    rng = np.random.RandomState(random_state)
+
+    n_anomalies = int(n_samples * anomaly_rate)
+    n_per_cluster = n_samples // n_clusters
+
+    # Cluster centers in context space
+    cluster_centers = rng.uniform(-5, 5, size=(n_clusters, 2))
+
+    # Each cluster has different behavior distribution
+    cluster_behavior_means = rng.uniform(-3, 3, size=(n_clusters, 3))
+    cluster_behavior_stds = rng.uniform(0.3, 1.0, size=(n_clusters, 3))
+
+    contexts = []
+    behaviors = []
+    cluster_labels = []
+
+    for i in range(n_clusters):
+        n_this = n_per_cluster if i < n_clusters - 1 else n_samples - len(contexts) * n_per_cluster // n_clusters
+        if i == n_clusters - 1:
+            n_this = n_samples - sum(len(c) for c in contexts)
+
+        # Context: Gaussian around cluster center
+        ctx = cluster_centers[i] + rng.randn(n_this, 2) * 0.5
+        contexts.append(ctx)
+
+        # Behavior: cluster-specific distribution
+        beh = cluster_behavior_means[i] + rng.randn(n_this, 3) * cluster_behavior_stds[i]
+        behaviors.append(beh)
+
+        cluster_labels.extend([i] * n_this)
+
+    context = np.vstack(contexts)
+    behavior = np.vstack(behaviors)
+    cluster_labels = np.array(cluster_labels)
+
+    # Labels: anomalies are points with behavior from WRONG cluster
+    labels = np.zeros(n_samples)
+    anomaly_idx = rng.choice(n_samples, n_anomalies, replace=False)
+    labels[anomaly_idx] = 1
+
+    # Swap behavior with a different cluster
+    for idx in anomaly_idx:
+        current_cluster = cluster_labels[idx]
+        other_cluster = (current_cluster + rng.randint(1, n_clusters)) % n_clusters
+        # Replace with typical behavior from other cluster
+        behavior[idx] = cluster_behavior_means[other_cluster] + \
+                        rng.randn(3) * cluster_behavior_stds[other_cluster]
+
+    # Shuffle
+    perm = rng.permutation(n_samples)
+    context = context[perm]
+    behavior = behavior[perm]
+    labels = labels[perm]
+
+    return context, behavior, labels
+
+
 # Dataset registry
 SYNTHETIC_DATASETS = {
     'syn_linear': generate_syn_linear,
     'syn_scale': generate_syn_scale,
     'syn_multimodal': generate_syn_multimodal,
     'syn_nonlinear': generate_syn_nonlinear,
+    'syn_highdim_context': generate_syn_highdim_context,
+    'syn_cluster': generate_syn_cluster,
 }
 
 
