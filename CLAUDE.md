@@ -61,14 +61,26 @@ CDIF/
 - [x] Implement PNKDIF in Python (src/models/pnkdif.py)
 - [x] Set up baseline implementations (src/models/baselines.py)
 - [x] Phase 1: Synthetic validation (syn_linear, syn_scale, syn_multimodal)
-- [x] Results in results/phase1_*.csv, analysis in notes/phase1_results.md
+- [x] Phase 2: Ablation studies (syn_nonlinear, hyperparameter sensitivity K/M/d_h)
+- [x] Phase 3: Scaling studies (N=1K to 50K)
+- [x] Results in results/phase*.csv, analysis in notes/
+
+## Key Results
+
+| Dataset | PNKDIF AUROC | IF AUROC | Winner |
+|---------|--------------|----------|--------|
+| syn_linear | 0.9997 | 0.6595 | PNKDIF (+51%) |
+| syn_scale | 0.9990 | 0.9672 | PNKDIF (+3%) |
+| syn_nonlinear | 1.0000 | 0.8199 | PNKDIF (+22%) |
+| syn_multimodal | 0.8673 | 0.5015 | PNKDIF (+73%)* |
+
+*Note: IF_concat (0.9803) beats PNKDIF on multimodal - known limitation
 
 ## Future Tasks
 
-- [ ] Phase 2: Ablation studies on syn_nonlinear
-- [ ] Phase 3: Real/semi-synthetic datasets (SAML-D, IEEE-CIS, PaySim)
-- [ ] Generate plots for paper (PR curves, bar plots)
-- [ ] Add scalability figure
+- [ ] Phase 4: Real/semi-synthetic datasets (SAML-D, IEEE-CIS, PaySim)
+- [ ] Generate plots for paper (PR curves, bar plots, scaling figure)
+- [ ] Update paper with experimental results
 - [ ] Finalize paper for submission
 
 ## Experiment Runner Notes
