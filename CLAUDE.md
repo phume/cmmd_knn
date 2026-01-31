@@ -56,10 +56,25 @@ CDIF/
 └── related_work/    # Reference papers
 ```
 
+## Completed Tasks
+
+- [x] Implement PNKDIF in Python (src/models/pnkdif.py)
+- [x] Set up baseline implementations (src/models/baselines.py)
+- [x] Phase 1: Synthetic validation (syn_linear, syn_scale, syn_multimodal)
+- [x] Results in results/phase1_*.csv, analysis in notes/phase1_results.md
+
 ## Future Tasks
 
-- [ ] Implement PNKDIF in Python (src/models/)
-- [ ] Set up baseline implementations
-- [ ] Run experiments and fill in result tables
+- [ ] Phase 2: Ablation studies on syn_nonlinear
+- [ ] Phase 3: Real/semi-synthetic datasets (SAML-D, IEEE-CIS, PaySim)
+- [ ] Generate plots for paper (PR curves, bar plots)
 - [ ] Add scalability figure
 - [ ] Finalize paper for submission
+
+## Experiment Runner Notes
+
+- `scripts/run_phase1.py`: Non-interactive runner with checkpoint/resume
+- Results saved incrementally to `results/phase1_raw.csv`
+- Checkpoint in `results/phase1_state.json` for crash recovery
+- Logs to `logs/phase1.log`
+- Errors to `results/phase1_errors.csv`
