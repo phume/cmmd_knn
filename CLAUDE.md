@@ -63,9 +63,12 @@ CDIF/
 - [x] Phase 1: Synthetic validation (syn_linear, syn_scale, syn_multimodal)
 - [x] Phase 2: Ablation studies (syn_nonlinear, hyperparameter sensitivity K/M/d_h)
 - [x] Phase 3: Scaling studies (N=1K to 50K)
+- [x] Phase 4: Real/semi-synthetic datasets (Adult, Bank, Cardio)
 - [x] Results in results/phase*.csv, analysis in notes/
 
 ## Key Results
+
+### Synthetic Data (Phases 1-3)
 
 | Dataset | PNKDIF AUROC | IF AUROC | Winner |
 |---------|--------------|----------|--------|
@@ -76,9 +79,20 @@ CDIF/
 
 *Note: IF_concat (0.9803) beats PNKDIF on multimodal - known limitation
 
+### Real Data (Phase 4)
+
+| Dataset | Best Method | AUROC | Notes |
+|---------|-------------|-------|-------|
+| adult_shift | PNKDIF_noMLP | 0.996 | All methods ~0.99 |
+| adult_swap | PNKDIF | 0.558 | Near-random for all |
+| bank_shift | IF/PNKDIF_noMLP | 0.999 | All methods ~0.99 |
+| bank_swap | PNKDIF | 0.538 | Near-random for all |
+| cardio | IF | 0.949 | PNKDIF at 0.780 |
+
+**Key insight**: PNKDIF_noMLP often best - random MLP may hurt on low-dim real data. Swap injection is fundamentally hard (behavior IS normal, just from different context).
+
 ## Future Tasks
 
-- [ ] Phase 4: Real/semi-synthetic datasets (SAML-D, IEEE-CIS, PaySim)
 - [ ] Generate plots for paper (PR curves, bar plots, scaling figure)
 - [ ] Update paper with experimental results
 - [ ] Finalize paper for submission
