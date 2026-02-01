@@ -12,11 +12,11 @@ While K-NN identifies the peer set, uniform weighting treats the nearest and K-t
 \subsubsection{Why Z-Score Normalization?}
 Z-score normalization encodes the assumption that context affects behavior through location (shift) and scale effects. This assumption holds in many practical settings: larger companies have larger transactions, athletes have higher baseline heart rates, etc. The z-score has a direct interpretation---``2.5 standard deviations above the peer mean''---which aids explainability. Alternative approaches like quantile normalization are more robust to non-Gaussian distributions but lose magnitude information that may be relevant for anomaly detection.
 
-\subsubsection{Why Frozen Random MLPs?}
-Training neural networks for anomaly detection faces a fundamental challenge: without labeled anomalies, what objective should be optimized? Autoencoders learn to reconstruct the training distribution, potentially learning to reconstruct (and thus miss) rare anomalies. Our frozen random projections sidestep this by making no assumptions about anomaly patterns. The theoretical justification comes from random feature methods \cite{rahimi2007random}: random projections can approximate kernel evaluations, providing non-linear decision boundaries without optimization. Each random initialization emphasizes different feature interactions, and the ensemble averages out pathological projections.
-
 \subsubsection{Why Isolation Forest as Final Scorer?}
-Isolation Forest is well-suited to high-dimensional transformed spaces where density estimation fails. Its $O(\log \psi)$ query time makes scoring efficient, and its path-length semantics are interpretable: anomalies are ``easier to isolate.'' In the MLP-transformed space, IF's axis-aligned cuts become curved boundaries in the original z-score space, capturing non-linear anomaly patterns.
+Isolation Forest is well-suited for anomaly scoring on the peer-normalized features. Its $O(\log \psi)$ query time makes scoring efficient, and its path-length semantics are interpretable: anomalies are ``easier to isolate.'' The z-score normalization transforms the problem into detecting outliers in a standardized space, which IF handles effectively.
+
+\subsubsection{Do Random MLP Projections Help?}
+We evaluated adding frozen random MLP projections before IF scoring (PNKDIF variant), motivated by Deep Isolation Forest~\cite{xu2023deep}. However, our experiments show this provides marginal benefit ($<2\%$ on synthetic data) and can slightly hurt real-world performance. The peer normalization itself provides sufficient feature transformation---additional random projections add complexity without consistent gains.
 
 \subsection{Limitations}
 

@@ -1,33 +1,38 @@
 \section{Introduction}
 
-Anomaly detection is a fundamental task in machine learning with applications spanning fraud detection, network intrusion detection, medical diagnosis, and quality control. Traditional approaches treat all samples uniformly, comparing each observation against global statistics or decision boundaries learned from the entire dataset. However, this global perspective fails when the definition of ``normal'' varies systematically across different contexts.
+Anomaly detection methods must choose: detect samples that are unusual \emph{globally}, or samples that are unusual \emph{for their context}? Standard methods like Isolation Forest~\cite{liu2008isolation} take the global view, flagging observations that deviate from the overall data distribution. This works well when anomalies are globally distinguishable. But some anomalies are \emph{contextual}: a \$50,000 wire transfer is normal for a corporate account but suspicious for a college student; a heart rate of 180 bpm is expected during exercise but alarming at rest.
 
-Consider fraud detection in financial transactions: a \$50,000 wire transfer may be perfectly normal for a corporate account but highly suspicious for a college student. Similarly, a heart rate of 180 bpm is alarming at rest but expected during intense exercise. In both cases, the behavioral features (transaction amount, heart rate) must be interpreted relative to the context features (account type, activity level) to accurately assess anomalousness.
+This paper addresses a practical question: \textbf{when does context-conditioning help, and how can we detect contextual anomalies when it does?}
 
-This observation motivates \emph{contextual anomaly detection} (CAD), where the goal is to identify samples whose behavioral features deviate from what is expected given their context. Formally, rather than modeling the marginal distribution $P(Y)$, we seek to model the conditional distribution $P(Y|C)$ and flag samples where $y$ is unlikely given $c$.
-
-Existing CAD methods face a fundamental trade-off between expressiveness and simplicity:
+We propose Peer-Normalized Kernel Isolation Forest (PNKIF), a training-free method designed as a \emph{diagnostic tool} that activates when context matters. PNKIF identifies contextually similar peers via K-nearest neighbors, normalizes behavioral features against peer statistics, then applies Isolation Forest. The key insight is that this approach:
 \begin{itemize}
-    \item \textbf{Training-based methods} such as Conditional Variational Autoencoders (CVAE) \cite{sohn2015learning} and Context-aware Wasserstein Autoencoders (CWAE) can learn complex non-linear relationships between context and behavior, but require careful architecture design, hyperparameter tuning, and may overfit or learn to ignore rare anomaly patterns.
-    \item \textbf{Training-free methods} such as ROCOD \cite{liang2023rocod} and QCAD \cite{liang2021conditional} avoid these pitfalls but are limited to linear decision boundaries in the behavioral feature space, potentially missing anomalies with complex multivariate structure.
+    \item \textbf{Excels on contextual anomalies}: When behavior is normal globally but unusual for the context, PNKIF achieves $0.95$ AUROC where standard IF scores $0.50$ (random).
+    \item \textbf{Matches IF on global anomalies}: When anomalies are globally distinguishable, both methods perform similarly---context-conditioning provides no benefit (as expected).
+    \item \textbf{Signals when context matters}: Divergence between PNKIF and IF scores indicates that contextual structure exists in the data.
 \end{itemize}
 
-In this paper, we propose \textbf{Peer-Normalized Kernel Deep Isolation Forest (PNKDIF)}, a method that achieves the best of both worlds: non-linear decision boundaries without training. Our approach builds on three key ideas:
+\subsection{Why Synthetic and Injected Anomalies?}
+
+A methodological challenge in evaluating contextual anomaly detection is that \textbf{standard benchmarks are dominated by global anomalies}. Datasets like Cardio, Thyroid, and CreditCard contain anomalies that are unusual everywhere---no context-conditioning is needed to detect them. This makes it impossible to evaluate whether a method can detect truly contextual violations.
+
+We address this through controlled injection: taking real datasets and swapping behavior between context groups (e.g., giving domestic accounts cross-border transaction patterns). This creates anomalies that are:
+\begin{itemize}
+    \item \textbf{Normal globally}: The injected behavior comes from real samples, so it lies within the global distribution.
+    \item \textbf{Unusual for the context}: The behavior is inconsistent with the sample's context group.
+\end{itemize}
+
+\textbf{What injection does NOT assume}: We make no assumptions about fraud labels, anomaly semantics, or crime realism. The injection tests a purely \emph{statistical} property: can the method detect conditional deviations? This is the defining capability of contextual anomaly detection.
+
+\subsection{Contributions}
 
 \begin{enumerate}
-    \item \textbf{Kernel-weighted peer normalization}: We identify each sample's contextually similar peers via K-nearest neighbors and compute RBF kernel-weighted statistics. Z-score normalization against these peer statistics removes context-dependent location and scale effects.
+    \item \textbf{PNKIF}: A training-free contextual anomaly detection method using peer normalization and Isolation Forest. Simple, scalable ($O(N \log N)$), and effective.
 
-    \item \textbf{Frozen random projections}: Inspired by random feature methods \cite{rahimi2007random} and Deep Isolation Forest \cite{xu2023deep}, we project normalized features through multiple frozen randomly-initialized MLPs. These create diverse non-linear representations without any optimization.
+    \item \textbf{Diagnostic framework}: We show that comparing PNKIF and IF reveals whether contextual structure exists---a practical tool for practitioners.
 
-    \item \textbf{Ensemble Isolation Forest scoring}: We apply Isolation Forest to each projected representation and aggregate scores. The axis-aligned cuts of IF in the transformed space correspond to non-linear boundaries in the original space.
+    \item \textbf{Methodological clarity}: We argue that synthetic/injected data is not a weakness but a \emph{necessity} for evaluating CAD methods, since global anomalies dominate standard benchmarks.
+
+    \item \textbf{Real-world validation}: On an anti-money laundering dataset (293K accounts), we demonstrate that injecting contextual violations causes IF to degrade while PNKIF improves, confirming real-world applicability.
 \end{enumerate}
 
-\noindent\textbf{Contributions.} Our main contributions are:
-\begin{itemize}
-    \item We propose PNKDIF, the first training-free contextual anomaly detection method with non-linear decision boundaries.
-    \item We introduce kernel-weighted peer normalization, which provides soft peer weighting via RBF kernels rather than hard K-NN cutoffs.
-    \item We demonstrate that frozen random MLP projections, combined with Isolation Forest, can capture complex anomaly patterns without any learned parameters.
-    \item We provide theoretical analysis of computational complexity and empirical evaluation on benchmark datasets.
-\end{itemize}
-
-The remainder of this paper is organized as follows. Section~\ref{sec:related} reviews related work in anomaly detection. Section~\ref{sec:method} presents the PNKDIF algorithm in detail. Section~\ref{sec:experiments} describes our experimental setup and results. Section~\ref{sec:discussion} discusses design choices and limitations. Section~\ref{sec:conclusion} concludes.
+The remainder of this paper is organized as follows. Section~\ref{sec:related} reviews related work. Section~\ref{sec:method} presents the PNKIF algorithm. Section~\ref{sec:experiments} describes experiments. Section~\ref{sec:discussion} discusses design choices and limitations. Section~\ref{sec:conclusion} concludes.

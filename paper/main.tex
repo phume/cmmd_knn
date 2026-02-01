@@ -8,7 +8,7 @@
 \usepackage{algorithm}
 \usepackage{algorithmic}
 
-\title{PNKDIF: Peer-Normalized Kernel Deep Isolation Forest for Training-Free Contextual Anomaly Detection}
+\title{PNKIF: Peer-Normalized Kernel Isolation Forest for Training-Free Contextual Anomaly Detection}
 
 \author{
 \IEEEauthorblockN{Author Name}
@@ -21,7 +21,7 @@ Email}
 \maketitle
 
 \begin{abstract}
-Contextual anomaly detection aims to identify samples whose behavioral features deviate from expectations given their context. Existing methods face a trade-off: training-based approaches like Conditional VAEs can model complex context-behavior relationships but require optimization and risk overfitting, while training-free methods like QCAD and ROCOD avoid these issues but are limited to linear decision boundaries. We propose Peer-Normalized Kernel Deep Isolation Forest (PNKDIF), a training-free method that achieves non-linear decision boundaries. PNKDIF first identifies contextually similar peers via K-nearest neighbors with RBF kernel weighting, then normalizes behavioral features against peer statistics. The normalized features are projected through multiple frozen randomly-initialized MLPs, creating diverse non-linear representations. Isolation Forest scores on each representation are aggregated to produce the final anomaly score. Our approach combines the expressiveness of deep learning with the simplicity and robustness of training-free methods. We demonstrate competitive performance on benchmark datasets while maintaining $O(N \log N)$ computational complexity and requiring no hyperparameter tuning for learning.
+When should anomaly detection condition on context? Standard methods like Isolation Forest detect \emph{global} anomalies---samples unusual everywhere. But some anomalies are \emph{contextual}: normal globally, yet unusual for their specific context (e.g., a domestic bank account with cross-border transaction patterns). We propose Peer-Normalized Kernel Isolation Forest (PNKIF), a diagnostic tool that activates precisely when context matters. PNKIF identifies contextually similar peers via K-nearest neighbors, normalizes behavior against peer statistics, then applies Isolation Forest. On datasets with true contextual anomalies, PNKIF achieves $0.95 \pm 0.03$ AUROC where standard IF scores $0.50 \pm 0.01$ (random). On datasets with global anomalies, IF matches or exceeds PNKIF---as expected, since context-conditioning provides no benefit. This diagnostic property is valuable: practitioners can run both methods, and divergence signals that contextual structure exists. We demonstrate on an anti-money laundering dataset (293K accounts) where injecting contextual violations (domestic accounts with cross-border behavior) causes IF to drop from $0.96$ to $0.90$ while PNKIF rises to $0.95$. The method scales as $O(N \log N)$ and requires no training.
 \end{abstract}
 
 \input{sections/introduction}

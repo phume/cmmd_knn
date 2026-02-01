@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / 'src'))
 import numpy as np
 from data.fraud_datasets import get_fraud_dataset, FRAUD_DATASETS
 from data.synthetic import get_dataset, SYNTHETIC_DATASETS
+from data.real_datasets import get_real_dataset, REAL_DATASETS
 from models.baselines import get_method
 from models.pnkdif import (PNKDIF, PNKDIFConfig, PNKDIFUniform, PNKDIFNoMLP,
                             PNKDIFSingle, PNKDIFGlobal)
@@ -42,11 +43,8 @@ def get_all_methods(seed, n_samples):
         'LOF': get_method('LOF'),
         'QCAD': get_method('QCAD', random_state=seed, n_neighbors=K),
         'ROCOD': get_method('ROCOD', random_state=seed, n_neighbors=K),
+        'PNKIF': PNKDIFNoMLP(config),  # PNKIF = no MLP projections
         'PNKDIF': PNKDIF(config),
-        'PNKDIF_uniform': PNKDIFUniform(config),
-        'PNKDIF_noMLP': PNKDIFNoMLP(config),
-        'PNKDIF_single': PNKDIFSingle(config),
-        'PNKDIF_global': PNKDIFGlobal(config),
     }
 
 
@@ -72,7 +70,7 @@ def run_dataset(dataset_name, max_samples=None):
     print(f"Already completed: {len(completed)}")
     print(f"{'='*60}")
 
-    total_runs = len(SEEDS) * 12
+    total_runs = len(SEEDS) * 9  # 9 methods
     run_idx = 0
 
     for seed in SEEDS:
@@ -86,8 +84,11 @@ def run_dataset(dataset_name, max_samples=None):
                     context, behavior, labels = get_fraud_dataset(dataset_name, random_state=seed)
             elif dataset_name in SYNTHETIC_DATASETS:
                 context, behavior, labels = get_dataset(dataset_name, random_state=seed)
+            elif dataset_name in REAL_DATASETS:
+                context, behavior, labels = get_real_dataset(dataset_name, random_state=seed)
             else:
                 print(f"Unknown dataset: {dataset_name}")
+                print(f"Available: {list(FRAUD_DATASETS.keys()) + list(SYNTHETIC_DATASETS.keys()) + list(REAL_DATASETS.keys())}")
                 return
 
             n_samples = len(labels)

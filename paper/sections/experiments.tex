@@ -4,192 +4,118 @@
 \subsection{Experimental Setup}
 
 \subsubsection{Datasets}
-We evaluate PNKDIF on synthetic and real-world datasets:
+We evaluate on 11 datasets spanning three categories:
 
 \begin{itemize}
-    \item \textbf{Synthetic}: Controlled datasets with known ground truth, including linear shift, scale variation, multimodal clusters, and nonlinear manifold anomalies.
-    \item \textbf{UCI Adult}: Census income data with demographics as context and work-related features as behavior.
-    \item \textbf{UCI Bank}: Marketing campaign data with customer profile as context and campaign statistics as behavior.
-    \item \textbf{Cardio (ODDS)}: Cardiology dataset with patient demographics as context and clinical measurements as behavior.
+    \item \textbf{Synthetic}: Controlled datasets with true contextual anomalies---Syn-Cluster (cluster-specific behavior) and Syn-HighDim (20D context with only 2 informative dimensions).
+    \item \textbf{Real + Injection}: Real datasets with injected contextual anomalies---Adult and Bank (UCI) with demographic-behavior swaps, and SAML-D with domestic-to-cross-border behavior injection.
+    \item \textbf{Real (Original)}: Fraud detection benchmarks with natural anomalies---Cardio, Thyroid, SAML-D, PaySim, IEEE-CIS, and CreditCard.
 \end{itemize}
+
+\textbf{Why injection is necessary}: Standard benchmarks contain predominantly \emph{global} anomalies that are unusual everywhere. Without controlled contextual violations, CAD methods cannot be meaningfully evaluated---global methods would appear equivalent to contextual methods. Injection creates anomalies that are normal globally but unusual for their context, isolating the property we wish to test.
+
+\textbf{What injection does NOT assume}: We make no assumptions about (1) fraud labels or ground truth semantics, (2) whether injected patterns represent real crimes, or (3) the operational meaning of anomalies. Injection tests a purely \emph{statistical} property: can the method detect samples whose behavior deviates from their context group's distribution? This is the defining capability of contextual anomaly detection, independent of downstream interpretation.
 
 \begin{table}[h]
 \centering
-\caption{Dataset statistics}
+\caption{Dataset statistics. $d_c$: context dimensions, $d_y$: behavior dimensions.}
 \label{tab:datasets}
+\small
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
-Dataset & $N$ & $d_c$ & $d_y$ & Anomaly \% \\
+Dataset & $N$ & $d_c$ & $d_y$ & Anom.\% \\
 \midrule
-Syn-Linear & 10,000 & 2 & 5 & 5\% \\
-Syn-Scale & 10,000 & 2 & 5 & 5\% \\
-Syn-Multimodal & 10,000 & 2 & 5 & 5\% \\
-Syn-Nonlinear & 10,000 & 2 & 5 & 5\% \\
-Adult (shift) & 30,162 & 5 & 4 & 5\% \\
-Bank (shift) & 30,488 & 7 & 9 & 5\% \\
+\multicolumn{5}{l}{\textit{Synthetic}} \\
+Syn-Cluster & 10,000 & 2 & 3 & 5.0\% \\
+Syn-HighDim & 10,000 & 20 & 3 & 5.0\% \\
+\midrule
+\multicolumn{5}{l}{\textit{Real + Injection}} \\
+Adult & 30,162 & 5 & 4 & 5.0\% \\
+Bank & 30,488 & 7 & 9 & 5.0\% \\
+SAML-D (inj) & 292,715 & 38 & 11 & 3.7\% \\
+\midrule
+\multicolumn{5}{l}{\textit{Real (Original)}} \\
 Cardio & 1,831 & 5 & 16 & 9.6\% \\
+Thyroid & 3,772 & 3 & 3 & 2.5\% \\
+SAML-D & 292,715 & 38 & 11 & 1.7\% \\
+PaySim & 50,000 & 3 & 7 & 0.2\% \\
+IEEE-CIS & 50,000 & 11 & 31 & 2.7\% \\
+CreditCard & 284,807 & 2 & 28 & 0.17\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsubsection{Baselines}
-We compare against the following methods:
+We compare against 7 baseline methods:
 \begin{itemize}
-    \item \textbf{Isolation Forest (IF)}: Standard IF on behavioral features only.
-    \item \textbf{IF-concat}: IF on concatenated context and behavioral features.
-    \item \textbf{Deep Isolation Forest (DIF)}: IF with random MLP projections on behavior.
-    \item \textbf{DIF-concat}: DIF on concatenated features.
-    \item \textbf{QCAD}: Quantile-based conditional anomaly detection~\cite{liang2021conditional}.
-    \item \textbf{ROCOD}: Robust conditional outlier detection with peer-based statistics~\cite{liang2023rocod}.
+    \item \textbf{IF}: Isolation Forest on behavioral features only~\cite{liu2008isolation}.
+    \item \textbf{IF$_c$}: IF on concatenated context and behavior.
+    \item \textbf{DIF}: Deep Isolation Forest with random MLP projections~\cite{xu2023deep}.
+    \item \textbf{DIF$_c$}: DIF on concatenated features.
     \item \textbf{LOF}: Local Outlier Factor on concatenated features~\cite{breunig2000lof}.
+    \item \textbf{QCAD}: Quantile-based conditional anomaly detection~\cite{liang2021conditional}.
+    \item \textbf{ROCOD}: Robust conditional outlier detection~\cite{liang2023rocod}.
 \end{itemize}
 
-\subsubsection{Evaluation Metrics}
-We report:
-\begin{itemize}
-    \item \textbf{AUROC}: Area under the ROC curve, measuring ranking quality.
-    \item \textbf{AUPRC}: Area under the Precision-Recall curve, appropriate for imbalanced data.
-    \item \textbf{P@k}: Precision at top-$k$ ranked samples ($k=100$).
-\end{itemize}
+We also evaluate \textbf{PNKDIF}, which adds random MLP projections before Isolation Forest scoring, to test whether non-linear feature interactions improve performance.
 
-\subsubsection{Implementation Details}
-For PNKDIF, we use $K=100$ neighbors, $M=6$ projections, $d_h=128$ hidden dimensions, $T=100$ trees, and $\psi=256$ subsample size. The kernel bandwidth $\gamma$ is set via the median heuristic. All experiments are run with 5 random seeds and we report mean $\pm$ standard deviation.
+\subsubsection{Implementation}
+For PNKDIF/PNKIF, we use $K=\min(100, N/20)$ neighbors, RBF kernel with median bandwidth heuristic, 6 random projections with 128 hidden dimensions, and 100 isolation trees. All experiments use 10 random seeds; we report mean AUROC.
 
 \subsection{Results}
 
-\subsubsection{Synthetic Data Performance}
+\input{generated_tables}
 
-Table~\ref{tab:auroc_synthetic} shows results on synthetic datasets designed to test specific aspects of contextual anomaly detection.
+Table~\ref{tab:main_results} presents the comprehensive AUROC comparison. The results reveal a clear pattern: the optimal method depends on whether anomalies are \emph{contextual} (unusual for their context) or \emph{global} (unusual everywhere).
 
-\begin{table}[h]
-\centering
-\caption{AUROC on synthetic datasets. Best in bold, second-best underlined.}
-\label{tab:auroc_synthetic}
-\begin{tabular}{@{}lcccc@{}}
-\toprule
-Method & Linear & Scale & Multimodal & Nonlinear \\
-\midrule
-IF & 0.660 & 0.967 & 0.501 & 0.820 \\
-IF-concat & 0.984 & 0.993 & \underline{0.980} & 0.918 \\
-DIF & 0.658 & 0.968 & 0.499 & 0.814 \\
-DIF-concat & \underline{0.992} & 0.989 & 0.970 & 0.903 \\
-LOF & 0.578 & 0.619 & 0.559 & \underline{0.999} \\
-QCAD & 0.990 & 0.990 & 0.528 & 0.962 \\
-ROCOD & \textbf{1.000} & \underline{0.999} & 0.676 & \textbf{1.000} \\
-\midrule
-\textbf{PNKDIF} & \textbf{1.000} & \textbf{0.999} & \textbf{0.867} & \textbf{1.000} \\
-\bottomrule
-\end{tabular}
-\end{table}
+\subsubsection{Contextual Anomalies: PNKIF/PNKDIF Excel}
 
-\textbf{Key findings}: (1) On linear shift anomalies, PNKDIF and ROCOD achieve near-perfect detection while standard IF fails (0.66 AUROC). (2) PNKDIF significantly outperforms all methods on multimodal data (+22\% over IF-concat), demonstrating the benefit of peer-aware normalization. (3) On nonlinear manifold anomalies, PNKDIF achieves perfect detection.
+On datasets with true contextual anomalies, PNKIF and PNKDIF dramatically outperform baselines:
 
-Figure~\ref{fig:synthetic} visualizes the comparison.
+\textbf{Syn-Cluster}: PNKDIF achieves 0.953 AUROC while IF scores only 0.504 (random). This 90\% improvement demonstrates that peer normalization is essential when anomalies are defined relative to cluster-specific behavior norms.
 
-\begin{figure}[h]
-\centering
-\includegraphics[width=\columnwidth]{figures/synthetic_comparison.pdf}
-\caption{AUROC comparison on synthetic datasets. Red border indicates best method.}
-\label{fig:synthetic}
-\end{figure}
+\textbf{SAML-D (injected)}: After injecting contextual anomalies (domestic accounts with cross-border transaction patterns), PNKIF achieves 0.948 compared to IF's 0.901. Notably, DIF drops to 0.750, showing that ignoring context hurts performance on contextual anomalies.
 
-\subsubsection{Real Data Performance}
+\textbf{Key insight}: The SAML-D comparison (with vs. without injection) is particularly informative. On original SAML-D labels, IF achieves 0.961 (best). After injection, IF drops to 0.901 while PNKIF rises to 0.948. This confirms that PNKIF specifically detects contextual anomalies that IF misses.
 
-Table~\ref{tab:auroc_real} presents results on real-world datasets with synthetic anomaly injection (shift-type).
+\subsubsection{Global Anomalies: IF/DIF Suffice}
 
-\begin{table}[h]
-\centering
-\caption{AUROC on real datasets with shift injection. Best in bold.}
-\label{tab:auroc_real}
-\begin{tabular}{@{}lccc@{}}
-\toprule
-Method & Adult & Bank & Cardio \\
-\midrule
-IF & 0.993 & \textbf{0.999} & \textbf{0.949} \\
-DIF & 0.986 & 0.996 & 0.943 \\
-LOF & 0.705 & 0.886 & 0.547 \\
-QCAD & 0.993 & \textbf{0.999} & 0.709 \\
-ROCOD & 0.942 & 0.935 & 0.768 \\
-\midrule
-PNKDIF & 0.988 & 0.996 & 0.744 \\
-PNKDIF-noMLP & \textbf{0.996} & \textbf{0.999} & 0.780 \\
-\bottomrule
-\end{tabular}
-\end{table}
+On datasets where anomalies have global signatures, traditional methods perform well:
 
-\textbf{Observations}: (1) On shift-injected anomalies, most methods achieve high AUROC (>0.93), with PNKDIF-noMLP matching or exceeding IF. (2) On Cardio, IF outperforms PNKDIF significantly (0.949 vs 0.780), suggesting the anomalies in this dataset are global outliers rather than contextual. (3) The simpler PNKDIF-noMLP variant often performs best, indicating that random MLP projections may not help when behavioral dimensionality is already low.
+\textbf{Cardio \& Thyroid}: IF and IF$_c$ achieve top performance (0.946 and 0.977), while PNKIF/PNKDIF underperform (0.78 and 0.70). These ODDS benchmark anomalies appear to be globally distinguishable without requiring peer comparison.
 
-\begin{figure}[h]
-\centering
-\includegraphics[width=\columnwidth]{figures/real_data_comparison.pdf}
-\caption{AUROC on real datasets with shift-type anomaly injection.}
-\label{fig:real}
-\end{figure}
+\textbf{CreditCard}: DIF variants achieve the best results (0.952). With only 2 context dimensions (Time, Amount), context-conditioning provides limited benefit.
 
-\subsubsection{Ablation Studies}
+\subsubsection{Do MLP Projections Help?}
 
-We evaluate the contribution of each PNKDIF component on the Syn-Nonlinear dataset (Table~\ref{tab:ablation}).
+Comparing PNKIF (no MLP) to PNKDIF (with random MLP projections):
+\begin{itemize}
+    \item PNKIF wins on 8/11 datasets (average $+1.0\%$ over PNKDIF)
+    \item PNKDIF wins only on Syn-HighDim ($+0.9\%$) and Syn-Cluster ($+0.1\%$)
+    \item Differences are small ($<2\%$); both dramatically outperform baselines on contextual anomalies
+\end{itemize}
 
-\begin{table}[h]
-\centering
-\caption{Ablation study on Syn-Nonlinear dataset}
-\label{tab:ablation}
-\begin{tabular}{@{}lc@{}}
-\toprule
-Variant & AUROC \\
-\midrule
-PNKDIF (full) & \textbf{1.0000} \\
-w/o kernel weighting (uniform) & 1.0000 \\
-w/o MLP projection & 0.9998 \\
-w/o peer normalization (DIF) & 0.8145 \\
-\bottomrule
-\end{tabular}
-\end{table}
+The MLP projections provide marginal benefit on high-dimensional synthetic data but slightly hurt performance on real data. \textbf{Conclusion}: The ``Deep'' component is unnecessary---peer normalization alone drives the improvement. We recommend PNKIF for its simplicity and speed.
 
-\textbf{Insights}: Peer normalization is the critical component, providing +18.5\% AUROC over DIF. The kernel weighting and MLP projections provide marginal improvements on this dataset. On real data with low-dimensional behavior, the MLP projection may even hurt performance.
+\subsection{Ablation: Peer Normalization is Essential}
 
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.7\columnwidth]{figures/ablation.pdf}
-\caption{Ablation study showing the contribution of each component.}
-\label{fig:ablation}
-\end{figure}
+The key component is peer normalization. Without it (using global statistics), PNKDIF reduces to approximately DIF:
+\begin{itemize}
+    \item On Syn-Cluster: 0.953 $\rightarrow$ 0.506 (near random)
+    \item On SAML-D (inj): 0.940 $\rightarrow$ 0.750 (matches DIF)
+\end{itemize}
 
-\subsubsection{Scalability}
+This confirms that the peer-based approach---not the MLP projections---drives the improvement on contextual anomalies.
 
-Figure~\ref{fig:scalability} shows wall-clock runtime as dataset size increases from $N=1,000$ to $N=50,000$.
+\subsection{Scalability}
 
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.8\columnwidth]{figures/scalability.pdf}
-\caption{Runtime vs. dataset size. PNKDIF scales as $O(N \log N)$.}
-\label{fig:scalability}
-\end{figure}
+PNKDIF scales as $O(N \log N)$ due to the K-NN step using ball-tree indexing. On SAML-D (293K samples), PNKIF processes the full dataset in approximately 3 minutes. The overhead versus DIF is ~25\%, primarily from neighbor search.
 
-PNKDIF maintains competitive runtime, processing 50K samples in ~4 seconds. The overhead versus DIF is ~25\% due to the K-NN step, which is amortized by the efficiency of ball-tree data structures.
+\subsection{Summary}
 
-\subsubsection{Hyperparameter Sensitivity}
-
-We study sensitivity to the key hyperparameter $K$ (number of neighbors):
-
-\begin{table}[h]
-\centering
-\caption{Sensitivity to $K$ (AUROC on Syn-Linear)}
-\label{tab:k_sensitivity}
-\begin{tabular}{@{}lccccc@{}}
-\toprule
-$K$ & 10 & 25 & 50 & 100 & 200 \\
-\midrule
-AUROC & 0.985 & 0.996 & 0.999 & \textbf{1.000} & 1.000 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-PNKDIF is robust across a wide range of $K$ values (25-200). Too small $K$ (<25) leads to noisy peer statistics, while very large $K$ (>500) loses locality. The number of projections $M$ and hidden dimension $d_h$ have minimal impact; even $M=1$ achieves strong performance.
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=\columnwidth]{figures/hyperparameter_sensitivity.pdf}
-\caption{Hyperparameter sensitivity analysis.}
-\label{fig:hyperparameter}
-\end{figure}
+\begin{itemize}
+    \item \textbf{Use PNKIF} when anomalies are contextual (behavior unusual for the specific context)
+    \item \textbf{Use IF/DIF} when anomalies are global (unusual everywhere)
+    \item MLP projections (PNKDIF) provide marginal benefit; simple peer normalization is sufficient
+    \item Real-world applicability demonstrated on SAML-D: detecting accounts with behavior patterns inconsistent with their geographic profile
+\end{itemize}

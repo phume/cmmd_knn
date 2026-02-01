@@ -15,10 +15,12 @@ import os
 DATA_DIR = Path(__file__).parent.parent.parent / 'data'
 RAW_DIR = DATA_DIR / 'raw'
 CACHE_DIR = DATA_DIR / 'cache'
+PROCESSED_DIR = DATA_DIR / 'processed'
 
 def ensure_dirs():
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
 def get_cache_path(dataset_name: str, config_hash: str) -> Path:
     """Get path for cached features."""
@@ -168,6 +170,279 @@ def load_saml(
           f"anomaly_rate={labels.mean():.3f}")
 
     return result
+
+
+# =============================================================================
+# SAML-D: Account-Level Aggregation (per design doc)
+# =============================================================================
+
+def load_saml_account_level(
+    data_path: Optional[str] = None,
+    random_state: Optional[int] = None,
+    max_samples: Optional[int] = None,  # Ignored - uses full pre-aggregated data
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Load SAML-D with account-level aggregation as per DATASET_FEATURES.md.
+
+    Note: max_samples is ignored since we use pre-aggregated account-level data.
+
+    This aggregates transaction-level data to account level:
+    - Context: Distribution profile (one-hot counts of locations, currencies, payment types)
+    - Behavior: Transaction statistics (count, sum, mean, std, max, min, range,
+                unique receivers, active days, velocity features)
+    - Label: max(Is_laundering) per account
+
+    Processed data is cached in data/processed/ folder since aggregation is expensive.
+
+    Returns:
+        context, behavior, labels (all at account level)
+    """
+    ensure_dirs()
+
+    # Check for processed file first (no random_state dependency - aggregation is deterministic)
+    processed_path = PROCESSED_DIR / 'saml_account_level.pkl'
+
+    if processed_path.exists():
+        print(f"Loading processed SAML account-level data from {processed_path}")
+        with open(processed_path, 'rb') as f:
+            data = pickle.load(f)
+        context, behavior, labels = data['context'], data['behavior'], data['labels']
+        print(f"SAML (account-level) loaded: N={len(labels)}, d_c={context.shape[1]}, "
+              f"d_y={behavior.shape[1]}, anomaly_rate={labels.mean():.4f}")
+        return context, behavior, labels
+
+    # Find raw data file
+    if data_path is None:
+        possible_names = [
+            'SAML-D.csv', 'SAML_D.csv', 'saml.csv', 'synthetic_aml.csv',
+            'HI-Small_Trans.csv', 'transactions.csv'
+        ]
+        for name in possible_names:
+            if (RAW_DIR / name).exists():
+                data_path = RAW_DIR / name
+                break
+
+    if data_path is None or not Path(data_path).exists():
+        raise FileNotFoundError(
+            f"SAML-D data not found. Please download from:\n"
+            f"https://www.kaggle.com/datasets/berkanoztas/synthetic-transaction-monitoring-dataset-aml\n"
+            f"And place CSV file in: {RAW_DIR}"
+        )
+
+    print(f"Loading and aggregating SAML-D from {data_path}...")
+    print("This may take a few minutes for 9.5M transactions...")
+
+    # Read raw transaction data
+    df = pd.read_csv(data_path)
+    print(f"Loaded {len(df):,} transactions")
+
+    # Identify label column
+    label_cols = ['Is_laundering', 'Is_Laundering', 'is_laundering', 'isFraud', 'label']
+    label_col = None
+    for col in label_cols:
+        if col in df.columns:
+            label_col = col
+            break
+    if label_col is None:
+        raise ValueError(f"No label column found. Available: {df.columns.tolist()}")
+
+    # =========================================================================
+    # Aggregate to account level
+    # =========================================================================
+    print("Aggregating to account level...")
+
+    # Context: Distribution profiles (one-hot counts per category)
+    # Bank location distribution
+    loc_counts = df.groupby(['Sender_account', 'Sender_bank_location']).size().unstack(fill_value=0)
+    loc_counts.columns = [f'loc_{c}' for c in loc_counts.columns]
+
+    # Currency distribution
+    curr_counts = df.groupby(['Sender_account', 'Payment_currency']).size().unstack(fill_value=0)
+    curr_counts.columns = [f'curr_{c}' for c in curr_counts.columns]
+
+    # Payment type distribution
+    ptype_counts = df.groupby(['Sender_account', 'Payment_type']).size().unstack(fill_value=0)
+    ptype_counts.columns = [f'ptype_{c}' for c in ptype_counts.columns]
+
+    # Combine context features
+    context_df = loc_counts.join(curr_counts, how='outer').join(ptype_counts, how='outer')
+    context_df = context_df.fillna(0)
+
+    # Behavior: Transaction statistics
+    behavior_agg = df.groupby('Sender_account').agg({
+        'Amount': ['count', 'sum', 'mean', 'std', 'max', 'min'],
+        'Receiver_account': 'nunique',
+        'Date': 'nunique',
+        label_col: 'max',
+    })
+    behavior_agg.columns = ['tx_count', 'tx_sum', 'tx_mean', 'tx_std', 'tx_max', 'tx_min',
+                            'unique_receivers', 'active_days', 'is_laundering']
+
+    # Derived features
+    behavior_agg['tx_range'] = behavior_agg['tx_max'] - behavior_agg['tx_min']
+    behavior_agg['avg_tx_per_day'] = behavior_agg['tx_count'] / behavior_agg['active_days'].clip(lower=1)
+    behavior_agg['avg_receivers_per_day'] = behavior_agg['unique_receivers'] / behavior_agg['active_days'].clip(lower=1)
+
+    # Fill NaN in std (accounts with single transaction)
+    behavior_agg['tx_std'] = behavior_agg['tx_std'].fillna(0)
+
+    # Extract labels
+    labels = behavior_agg['is_laundering'].values.astype(int)
+
+    # Behavior features (exclude label)
+    behavior_cols = ['tx_count', 'tx_sum', 'tx_mean', 'tx_std', 'tx_max', 'tx_min',
+                     'tx_range', 'unique_receivers', 'active_days',
+                     'avg_tx_per_day', 'avg_receivers_per_day']
+    behavior_df = behavior_agg[behavior_cols]
+
+    # Align indices
+    common_accounts = context_df.index.intersection(behavior_df.index)
+    context_df = context_df.loc[common_accounts]
+    behavior_df = behavior_df.loc[common_accounts]
+    labels = behavior_agg.loc[common_accounts, 'is_laundering'].values.astype(int)
+
+    print(f"Aggregated to {len(common_accounts):,} accounts")
+    print(f"Context features: {context_df.shape[1]}, Behavior features: {behavior_df.shape[1]}")
+    print(f"Anomaly rate: {labels.mean():.4f}")
+
+    # Convert to numpy
+    context = context_df.values.astype(float)
+    behavior = behavior_df.values.astype(float)
+
+    # Standardize
+    context = (context - context.mean(axis=0)) / (context.std(axis=0) + 1e-8)
+    behavior = (behavior - behavior.mean(axis=0)) / (behavior.std(axis=0) + 1e-8)
+
+    # Handle any remaining NaN
+    context = np.nan_to_num(context, nan=0.0)
+    behavior = np.nan_to_num(behavior, nan=0.0)
+
+    # Save processed data
+    print(f"Saving processed data to {processed_path}")
+    with open(processed_path, 'wb') as f:
+        pickle.dump({
+            'context': context,
+            'behavior': behavior,
+            'labels': labels,
+            'context_columns': list(context_df.columns),
+            'behavior_columns': behavior_cols,
+        }, f)
+
+    print(f"SAML (account-level) processed: N={len(labels)}, d_c={context.shape[1]}, "
+          f"d_y={behavior.shape[1]}, anomaly_rate={labels.mean():.4f}")
+
+    return context, behavior, labels
+
+
+def load_saml_with_injection(
+    data_path: Optional[str] = None,
+    random_state: Optional[int] = None,
+    max_samples: Optional[int] = None,  # Ignored
+    injection_rate: float = 0.02,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Load SAML-D account-level data with contextual anomaly injection.
+
+    Injection Strategy: Domestic → Cross-border Behavior Swap
+
+    Accounts that are primarily domestic (>80% same-country transactions)
+    are given the behavioral statistics of cross-border accounts.
+    This creates contextual anomalies: the behavior values are normal globally
+    but unusual for accounts with domestic transaction profiles.
+
+    Parameters:
+        injection_rate: Fraction of normal domestic accounts to inject (default 2%)
+        random_state: Random seed for reproducibility
+
+    Returns:
+        context, behavior, labels (with injected contextual anomalies)
+    """
+    rng = np.random.RandomState(random_state)
+
+    # Load the processed account-level data
+    processed_path = PROCESSED_DIR / 'saml_account_level.pkl'
+
+    if not processed_path.exists():
+        # Generate it first
+        load_saml_account_level()
+
+    print(f"Loading processed SAML data for injection...")
+    with open(processed_path, 'rb') as f:
+        data = pickle.load(f)
+
+    context = data['context'].copy()
+    behavior = data['behavior'].copy()
+    labels = data['labels'].copy()
+    context_columns = data['context_columns']
+    behavior_columns = data['behavior_columns']
+
+    # =========================================================================
+    # Identify Domestic vs Cross-border accounts using context features
+    # =========================================================================
+    # Context columns are like: loc_UK, loc_US, loc_DE, curr_UK pounds, ptype_Cash Deposit, etc.
+
+    # Find location columns (they start with 'loc_')
+    loc_cols = [i for i, col in enumerate(context_columns) if col.startswith('loc_')]
+
+    if len(loc_cols) < 2:
+        print("Warning: Not enough location columns for injection. Returning original data.")
+        return context, behavior, labels
+
+    # For each account, calculate "domestic ratio" based on location distribution
+    # High values in a single location column = domestic, spread across = cross-border
+    loc_features = context[:, loc_cols]  # Already standardized, so we work with relative values
+
+    # Use entropy-like measure: domestic accounts have low entropy (concentrated in one location)
+    # Add small epsilon to avoid log(0)
+    loc_probs = np.abs(loc_features) / (np.abs(loc_features).sum(axis=1, keepdims=True) + 1e-8)
+    loc_entropy = -np.sum(loc_probs * np.log(loc_probs + 1e-8), axis=1)
+
+    # Low entropy = domestic, high entropy = cross-border
+    entropy_threshold_domestic = np.percentile(loc_entropy, 25)  # Bottom 25% = most domestic
+    entropy_threshold_crossborder = np.percentile(loc_entropy, 75)  # Top 25% = most cross-border
+
+    domestic_mask = (loc_entropy <= entropy_threshold_domestic) & (labels == 0)
+    crossborder_mask = loc_entropy >= entropy_threshold_crossborder
+
+    domestic_idx = np.where(domestic_mask)[0]
+    crossborder_idx = np.where(crossborder_mask)[0]
+
+    print(f"Domestic accounts (low entropy, normal): {len(domestic_idx)}")
+    print(f"Cross-border accounts (high entropy): {len(crossborder_idx)}")
+
+    if len(domestic_idx) == 0 or len(crossborder_idx) == 0:
+        print("Warning: Could not identify domestic/cross-border accounts. Returning original data.")
+        return context, behavior, labels
+
+    # =========================================================================
+    # Inject contextual anomalies
+    # =========================================================================
+    n_inject = int(len(labels) * injection_rate)
+    n_inject = min(n_inject, len(domestic_idx))
+
+    # Select random domestic accounts to inject
+    inject_idx = rng.choice(domestic_idx, n_inject, replace=False)
+
+    # Calculate cross-border behavior statistics (in standardized space)
+    crossborder_behavior_mean = behavior[crossborder_idx].mean(axis=0)
+    crossborder_behavior_std = behavior[crossborder_idx].std(axis=0) + 1e-6
+
+    # Replace domestic behavior with cross-border-like behavior
+    # Add some noise to avoid exact duplicates
+    for i in inject_idx:
+        noise = rng.randn(behavior.shape[1]) * 0.3  # 30% of std as noise
+        behavior[i] = crossborder_behavior_mean + noise * crossborder_behavior_std
+        labels[i] = 1  # Mark as anomaly
+
+    # Count original vs injected anomalies
+    n_original_anomalies = data['labels'].sum()
+    n_total_anomalies = labels.sum()
+
+    print(f"Injected {n_inject} contextual anomalies (domestic accounts with cross-border behavior)")
+    print(f"Original anomalies: {n_original_anomalies}, Total anomalies: {n_total_anomalies}")
+    print(f"New anomaly rate: {labels.mean():.4f}")
+
+    return context, behavior, labels
 
 
 # =============================================================================
@@ -519,7 +794,9 @@ def generate_synthetic_fallback(
 # =============================================================================
 
 FRAUD_DATASETS = {
-    'saml': load_saml,
+    'saml': load_saml_account_level,  # Account-level aggregation (real anomalies only)
+    'saml_injected': load_saml_with_injection,  # With contextual anomaly injection
+    'saml_tx': load_saml,  # Original transaction-level (deprecated)
     'ieee_cis': load_ieee_cis,
     'paysim': load_paysim,
     'creditcard': load_creditcard,

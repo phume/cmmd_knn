@@ -1,16 +1,19 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented Peer-Normalized Kernel Deep Isolation Forest (PNKDIF), a novel approach to contextual anomaly detection that achieves non-linear decision boundaries without requiring any training. By combining kernel-weighted peer normalization with frozen random MLP projections and Isolation Forest scoring, PNKDIF bridges the gap between simple training-free methods and expressive deep learning approaches.
+We presented Peer-Normalized Kernel Isolation Forest (PNKIF), a diagnostic tool for contextual anomaly detection. Unlike methods that claim universal superiority, PNKIF is designed to \textbf{activate when context matters}:
 
-Our key contributions include:
-\begin{enumerate}
-    \item A kernel-weighted peer normalization scheme that provides soft weighting of contextually similar samples, improving upon hard K-NN cutoffs used in prior work.
-    \item The integration of random neural projections with peer-based normalization, enabling non-linear anomaly detection in the contextual setting.
-    \item A fully training-free pipeline that avoids the hyperparameter sensitivity and potential overfitting of learned approaches.
-\end{enumerate}
+\begin{itemize}
+    \item On contextual anomalies (normal globally, unusual for context): PNKIF achieves $0.95$ AUROC where IF scores $0.50$.
+    \item On global anomalies (unusual everywhere): IF matches or exceeds PNKIF---as expected.
+    \item \textbf{Diagnostic value}: Divergence between PNKIF and IF signals that contextual structure exists.
+\end{itemize}
 
-The method scales to large datasets with $O(N \log N)$ complexity and is highly parallelizable. The peer-based normalization also provides interpretability: for any flagged sample, we can retrieve its peer group and show what ``normal'' behavior looks like in that context.
+This framing resolves a tension in CAD evaluation: standard benchmarks are dominated by global anomalies, making CAD methods appear unnecessary. We argue that synthetic/injected data is not a weakness but a \emph{methodological necessity}---without controlled contextual violations, the defining capability of CAD cannot be tested.
+
+On a real anti-money laundering dataset (293K accounts), injecting contextual violations (domestic accounts with cross-border behavior) causes IF to drop from $0.96$ to $0.90$ while PNKIF rises to $0.95$. This demonstrates both the method's effectiveness and the diagnostic framework: the divergence signals that geographic context matters for this detection task.
+
+The method scales as $O(N \log N)$ and requires no training. For practitioners, we recommend running both PNKIF and IF: agreement suggests global anomalies dominate; divergence suggests contextual structure worth investigating.
 
 \subsection{Future Work}
 
