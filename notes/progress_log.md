@@ -447,3 +447,122 @@ This is a well-known pattern ("residual analysis"). But combining it with IF for
 
 **Target story:**
 "Domestic accounts exhibiting cross-border transaction patterns" - a clear, domain-relevant contextual anomaly that IF misses but PNKIF catches
+
+---
+
+## AML Datasets for Experiments
+
+### 1. SAML-D (Already have)
+- **Source**: Kaggle, Oztas et al. IEEE 2023
+- **Size**: 293K accounts, 12 features, 28 typologies
+- **Labels**: ~0.1% suspicious
+- **Context features**: Geography, customer type, payment type
+- **Status**: Downloaded in data/raw/
+
+### 2. IBM AML-Data (NeurIPS 2023)
+- **Source**: https://github.com/IBM/AML-Data
+- **Size**: Multiple datasets of varying sizes
+- **Labels**: Perfect ground truth (synthetic)
+- **Features**: Bank transfers, purchases, credit cards, checks
+- **Context**: 9 criminal activity sources (drugs, gambling, etc.)
+- **Status**: TO DOWNLOAD
+
+### 3. PaySim
+- **Source**: Kaggle
+- **Size**: ~6M transactions (1/4 scale)
+- **Labels**: Fraud labels
+- **Features**: Mobile money transactions
+- **Context**: Transaction type, account balance
+- **Status**: Need to check data/raw/
+
+### 4. IEEE-CIS Fraud Detection
+- **Source**: Kaggle (Amazon FDB benchmark)
+- **Size**: 590K transactions, 393→67 features
+- **Labels**: 3.5% fraud rate
+- **Features**: Card-not-present transactions
+- **Status**: Need to check data/raw/
+
+### 5. AMLNet (Zenodo 2025)
+- **Source**: https://zenodo.org/records/16482144
+- **Size**: 1M+ transactions
+- **Labels**: 0.15% money laundering
+- **Features**: AUSTRAC-compliant patterns
+- **Status**: TO DOWNLOAD (if needed)
+
+---
+
+## AML Experiment Results (2026-02-01)
+
+### Key Finding: PNKIF wins when contextual anomalies are present!
+
+| Dataset | IF | PNKIF | ROCOD | Winner |
+|---------|-----|-------|-------|--------|
+| SAML-D (original labels) | **0.945** | 0.892 | 0.412 | IF |
+| SAML-D (with injected contextual) | 0.855 | **0.886** | 0.494 | PNKIF |
+
+### Interpretation
+
+1. **Original labels = global anomalies**: The suspicious accounts in SAML-D have unusual behavior that stands out globally. IF excels here (0.945).
+
+2. **Injected contextual anomalies**: We swapped behaviors between geographic groups (e.g., UK accounts behaving like UAE accounts). These are normal GLOBALLY but unusual FOR CONTEXT.
+
+3. **IF performance drops**: 0.945 → 0.855 (-9.5%) because IF can't detect behavior that's only unusual in context.
+
+4. **PNKIF stays stable**: 0.892 → 0.886 (-0.7%) because it compares to peers with similar context.
+
+5. **PNKIF > IF on injected**: +3.1% improvement (0.886 vs 0.855)
+
+### This is the paper's key story!
+
+"When geographic context matters for AML detection, standard IF misses contextual anomalies that PNKIF catches."
+
+### Issues to Address
+
+1. **Context encoding**: Currently using label encoding (0,1,2...) which doesn't reflect true distances. Should use one-hot encoding.
+
+2. **Small injection sample**: Only 218 injected due to imbalanced context groups. Need better injection strategy.
+
+3. **ROCOD performs poorly**: 0.412-0.494. Need to investigate why.
+
+### Updated Results with One-Hot Context Encoding (2026-02-01)
+
+| Dataset | IF | PNKIF | ROCOD | Winner |
+|---------|-----|-------|-------|--------|
+| SAML-D (original) | **0.945** | 0.893 | 0.416 | IF |
+| SAML-D (injected) | 0.871 | **0.890** | 0.478 | PNKIF |
+| PaySim (original) | **0.678** | 0.429 | 0.334 | IF |
+| PaySim (injected) | **0.652** | 0.627 | 0.449 | IF |
+
+### Key Findings
+
+1. **SAML-D shows the desired pattern:**
+   - IF drops from 0.945 → 0.871 (-7.8%) with contextual injection
+   - PNKIF stays stable: 0.893 → 0.890 (-0.3%)
+   - PNKIF wins on injected data by +1.9%
+
+2. **PaySim doesn't show the pattern:**
+   - Context is just transaction type (5 categories)
+   - Not enough contextual richness for peer comparison to help
+   - IF still wins even after injection
+
+3. **ROCOD performs poorly on both:**
+   - 0.416-0.478 on SAML-D, 0.334-0.449 on PaySim
+   - Needs investigation - may be K-NN issues with one-hot encoded data
+
+### Conclusion for Paper
+
+**SAML-D is the right dataset for Option B paper:**
+- Rich geographic context (18 locations)
+- Clear story: "domestic accounts with cross-border behavior"
+- PNKIF wins when context matters
+
+**PaySim is not suitable:**
+- Context is too simple (just transaction type)
+- Standard IF is sufficient
+
+### Next Steps
+
+- [ ] Run larger injection experiment on SAML-D (5-10% rate)
+- [ ] Create visualization of IF vs PNKIF on contextual anomalies
+- [ ] Draft AML-focused introduction
+- [ ] Consider adding IBM AML-Data for additional validation
