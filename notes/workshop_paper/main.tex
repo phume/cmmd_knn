@@ -20,7 +20,7 @@
 \maketitle
 
 \begin{abstract}
-Contextual anomaly detection identifies data points that are normal globally but unusual within their specific context. While peer group analysis has long been used in anti-money laundering (AML) systems, the question of \emph{when} contextual methods provide value over global approaches remains understudied. We present an empirical comparison of Isolation Forest (IF), a global anomaly detector, against peer-normalized variants (PNKIF, PNKDIF) on three financial datasets. Our experiments with domain-grounded injection strategies reveal a clear pattern: IF excels at detecting globally unusual behavior, while peer-normalized methods excel at detecting behavior that is normal globally but unusual for a specific context (e.g., geographic arbitrage). We also find that the deep variant (PNKDIF) outperforms PNKIF at higher contamination rates. We propose using multiple methods as a diagnostic: disagreement between IF and contextual methods signals the presence of contextual anomalies. This provides practitioners with actionable guidance on method selection for transaction monitoring systems.
+Contextual anomaly detection identifies data points that are normal globally but unusual within their specific context. While peer group analysis has long been used in anti-money laundering (AML) systems, the question of \emph{when} contextual methods provide value over global approaches remains understudied. This paper presents an empirical study---not a new detection algorithm---comparing Isolation Forest (IF) against peer-normalized variants on three financial datasets. Using controlled injection strategies grounded in AML typologies, we demonstrate a clear pattern: IF excels at detecting globally unusual behavior, while peer-normalized methods excel at detecting behavior that is normal globally but unusual for a specific context. We find that the deep variant (PNKDIF) provides marginal benefit only at high contamination rates. Our key contribution is reframing contextual detection as a \emph{diagnostic tool}: disagreement between IF and contextual methods reliably signals the presence of contextual structure in the data. This provides practitioners with actionable guidance on method selection for transaction monitoring systems.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -35,14 +35,33 @@ Peer group analysis has been used in financial crime detection since Bolton and 
 
 In this paper, we address the question: \textbf{When does context help in anomaly detection for transaction monitoring?}
 
-Our contributions are:
+\subsection{Contributions}
+
+This paper makes \emph{methodological and empirical} contributions, rather than proposing a universally superior anomaly detection model.
+
 \begin{enumerate}
-    \item An empirical comparison of global (IF) vs. contextual (PNKIF, PNKDIF) anomaly detection on three financial datasets
-    \item Domain-grounded injection strategies that simulate realistic AML typologies (geographic arbitrage, account misuse)
-    \item Evidence that method effectiveness depends on anomaly type: IF for global anomalies, contextual methods for contextual anomalies
-    \item Analysis of when deep projections (PNKDIF) outperform simple peer normalization (PNKIF)
-    \item A practical diagnostic: run both methods; disagreement signals contextual anomalies
+    \item \textbf{Empirical clarification of when context helps.} We provide a systematic empirical study showing that the effectiveness of contextual anomaly detection depends on the \emph{type} of anomaly present. Global anomaly detectors such as Isolation Forest excel when anomalies are globally unusual, while contextual methods are effective only when anomalies are normal globally but deviate relative to peer groups.
+
+    \item \textbf{Contextual anomaly detection as a diagnostic tool.} We reframe contextual methods not as replacements for global detectors, but as \emph{diagnostic instruments}. We demonstrate that disagreement between global and contextual detectors reliably signals the presence of contextual structure in the data.
+
+    \item \textbf{Controlled evaluation via domain-grounded injections.} We argue that standard anomaly detection benchmarks are dominated by global anomalies, making them unsuitable for evaluating contextual methods. We therefore use controlled, domain-grounded injection strategies to isolate conditional deviations, enabling meaningful evaluation of contextual detection capabilities.
+
+    \item \textbf{Minimal reference implementation (PNKIF).} We introduce Peer-Normalized Kernel Isolation Forest as a minimal, training-free reference implementation to study contextual effects. PNKIF is \emph{not} proposed as a universally superior detector, but as a simple and interpretable vehicle for isolating contextual anomaly behavior.
+
+    \item \textbf{Negative results on deep extensions.} We evaluate a deep variant using random neural projections and show that it provides marginal or inconsistent benefit. This negative result highlights that peer normalization---not model depth---is the primary driver of contextual detection performance.
 \end{enumerate}
+
+\subsection{Scope and Non-Claims}
+
+This paper deliberately limits its scope and makes several explicit non-claims:
+
+\begin{itemize}
+    \item We do \emph{not} claim that contextual anomaly detection is universally superior to global methods.
+    \item We do \emph{not} claim that PNKIF outperforms deep or learned contextual models such as conditional VAEs in all settings.
+    \item We do \emph{not} claim to model complex conditional distributions where context alters distributional shape or multimodality.
+\end{itemize}
+
+Instead, we focus on the most common and operationally relevant form of contextual dependence, where context primarily induces \emph{location and scale shifts} in behavior (e.g., transaction volume scaling with customer profile). More complex conditional structures may require learned generative models, which introduce additional training complexity and stability concerns beyond the scope of this study.
 
 \section{Related Work}
 
@@ -61,7 +80,7 @@ Contextual anomalies are data points that are unusual only within a specific con
 
 \subsection{Peer Group Analysis}
 
-Bolton and Hand~\cite{bolton2001peer} introduced peer group analysis for fraud detection. The approach groups entities by context features and flags deviations from peer behavior. Our methods formalize this with kernel-weighted peer normalization.
+Bolton and Hand~\cite{bolton2001peer} introduced peer group analysis for fraud detection. The approach groups entities by context features and flags deviations from peer behavior. Our reference implementation formalizes this with kernel-weighted peer normalization.
 
 \section{Methods}
 
@@ -75,15 +94,19 @@ Isolation Forest~\cite{liu2008isolation} detects anomalies by measuring how easi
 
 \subsection{Peer-Normalized Kernel Isolation Forest (PNKIF)}
 
-PNKIF applies peer normalization before Isolation Forest:
+PNKIF is \emph{not} proposed as a novel anomaly detection paradigm. Instead, it serves as a minimal, interpretable reference implementation designed to isolate the effect of peer-based normalization on anomaly scoring.
+
+By combining kernel-weighted peer normalization with a standard Isolation Forest scorer, PNKIF deliberately avoids learned representations, end-to-end optimization, or deep architectures. This design choice ensures that observed performance differences can be attributed to \emph{contextual normalization}, rather than representational capacity or training artifacts.
+
+The method applies peer normalization before Isolation Forest:
 
 \begin{enumerate}
-    \item \textbf{Compute peer weights:} For each point $i$, compute RBF kernel weights to all other points based on context similarity:
+    \item \textbf{Compute peer weights:} For each point $i$, compute RBF kernel weights based on context similarity:
     \[
     w_{ij} = \exp\left(-\frac{\|\mathbf{c}_i - \mathbf{c}_j\|^2}{2\gamma^2}\right)
     \]
 
-    \item \textbf{Compute peer statistics:} Weighted mean and standard deviation of behavior:
+    \item \textbf{Compute peer statistics:} Weighted mean and standard deviation:
     \[
     \boldsymbol{\mu}_i = \frac{\sum_j w_{ij} \mathbf{x}_j}{\sum_j w_{ij}}, \quad
     \boldsymbol{\sigma}_i = \sqrt{\frac{\sum_j w_{ij} (\mathbf{x}_j - \boldsymbol{\mu}_i)^2}{\sum_j w_{ij}}}
@@ -94,18 +117,11 @@ PNKIF applies peer normalization before Isolation Forest:
     \item \textbf{Score:} Apply Isolation Forest to normalized behaviors $\{\tilde{\mathbf{x}}_i\}$
 \end{enumerate}
 
-\subsection{Deep Peer-Normalized Isolation Forest (PNKDIF)}
+\subsection{On the Role of Random Projections (PNKDIF)}
 
-PNKDIF extends PNKIF by applying random MLP projections before Isolation Forest, inspired by Deep Isolation Forest~\cite{xu2023deep}:
+We evaluated a deep variant (PNKDIF) incorporating frozen random neural projections, inspired by Deep Isolation Forest~\cite{xu2023deep}. PNKDIF projects peer-normalized features through $M$ random MLPs and averages anomaly scores across projections.
 
-\begin{enumerate}
-    \item Apply peer normalization as in PNKIF to obtain $\tilde{\mathbf{x}}_i$
-    \item Project through $M$ frozen random MLPs: $\mathbf{z}_i^{(m)} = \text{MLP}_m(\tilde{\mathbf{x}}_i)$
-    \item Build separate Isolation Forest on each projection
-    \item Average anomaly scores across projections
-\end{enumerate}
-
-The random projections create non-linear decision boundaries, potentially improving detection of complex anomaly patterns.
+Results were mixed: marginal benefit at high contamination ($>$5\%) on geographic swap injection, but inconsistent or degraded performance in other scenarios. This suggests that \emph{peer normalization alone} captures the dominant contextual signal, and additional representational complexity offers limited benefit. We therefore emphasize PNKIF for its simplicity, interpretability, and computational efficiency, while reporting PNKDIF results for completeness.
 
 \section{Experimental Setup}
 
@@ -121,9 +137,24 @@ We use three public financial datasets:
     \item \textbf{Credit Card}~\cite{dal2015calibrating}: Anonymized transactions with 30K samples. Context: time and amount (2 features). Behavior: PCA components V1-V28 (28 features).
 \end{itemize}
 
+\subsection{Why Controlled Injection Is Necessary}
+
+Evaluating contextual anomaly detection presents a fundamental challenge: public benchmarks overwhelmingly contain \emph{global} anomalies---samples that are unusual regardless of context.
+
+In such datasets, contextual methods cannot demonstrate their defining capability, because global detectors already succeed. As a result, naive evaluation misleadingly suggests that context provides no benefit.
+
+To isolate the statistical property of interest---conditional deviation given context---we use controlled, domain-grounded injection strategies that satisfy two constraints:
+
+\begin{enumerate}
+    \item \textbf{Normal globally:} Injected behaviors are drawn from real samples and lie within the global distribution.
+    \item \textbf{Abnormal conditionally:} The same behaviors violate expectations relative to their assigned context.
+\end{enumerate}
+
+Importantly, injection does \emph{not} assume fraud semantics, ground-truth labels, or operational realism. It functions as a \textbf{controlled falsification test}, analogous to stress-testing a model under known violations of its assumptions. Without such controlled violations, contextual anomaly detection cannot be meaningfully evaluated.
+
 \subsection{Injection Strategies}
 
-Since original labels in these datasets correspond to globally unusual behavior, we inject contextual anomalies using domain-grounded strategies:
+We use domain-grounded strategies motivated by known AML typologies:
 
 \begin{enumerate}
     \item \textbf{Geographic Swap (Contextual):} Simulate geographic arbitrage---a known FATF money laundering typology---by assigning behavior from one geographic region to accounts in another region.
@@ -145,8 +176,10 @@ We report AUROC across 10 random seeds for robustness. Methods compared:
     \item \textbf{IF\_concat}: Isolation Forest on concatenated context + behavior
     \item \textbf{ROCOD}: K-NN peer normalization with robust statistics~\cite{liang2022robust}
     \item \textbf{PNKIF}: Kernel-weighted peer normalization + IF
-    \item \textbf{PNKDIF}: PNKIF + random MLP projections (deep variant)
+    \item \textbf{PNKDIF}: PNKIF + random MLP projections
 \end{itemize}
+
+\textbf{Limitations of AUROC:} We acknowledge that AUROC has known limitations under extreme class imbalance typical of AML applications. A full operational evaluation would require precision@k, workload-based metrics, and alert volume analysis. We use AUROC as a standardized comparison metric while recognizing it does not fully capture practical deployment considerations.
 
 \section{Results}
 
@@ -215,7 +248,7 @@ Rate & IF & PNKIF & PNKDIF & Winner \\
 \end{tabular}
 \end{table}
 
-The deep projections in PNKDIF provide additional benefit when contamination is high, possibly by creating non-linear decision boundaries that better separate complex anomaly patterns.
+The deep projections in PNKDIF provide additional benefit when contamination is high, possibly by creating non-linear decision boundaries that better separate complex anomaly patterns. However, this benefit is limited to specific scenarios and does not generalize.
 
 \subsection{Global Injection: IF Wins}
 
@@ -241,13 +274,29 @@ Temporal Shift & \textbf{12/12} & 0/12 & 0/12 \\
 
 \section{Discussion}
 
+\subsection{Contextual Detection as a Diagnostic Signal}
+
+A key finding of this study is that \emph{agreement and disagreement} between global and contextual detectors is itself informative.
+
+Empirically, we observe three regimes:
+
+\begin{itemize}
+    \item \textbf{Agreement at high scores:} Anomalies are globally unusual; context adds little value.
+    \item \textbf{Contextual-only detection:} Behavior is common globally but anomalous for its peer group.
+    \item \textbf{Widespread disagreement:} The dataset contains substantial contextual structure.
+\end{itemize}
+
+This suggests a practical diagnostic workflow: practitioners can run a global detector (e.g., IF) alongside a contextual detector (e.g., PNKIF). Divergence between the two signals that context-aware modeling is warranted, while agreement indicates that global detection is sufficient.
+
+This reframing resolves a long-standing ambiguity in AML systems, where contextual methods are often deployed without evidence that context is actually informative.
+
 \subsection{When Does Context Help?}
 
 Our results provide clear guidance:
 \begin{itemize}
     \item \textbf{Use IF} when anomalies are globally unusual (unusual amounts, frequencies, or feature values) or when contamination is very low ($<$1\%)
     \item \textbf{Use PNKIF} when anomalies are contextually unusual and you need interpretability (peer comparison is explainable)
-    \item \textbf{Use PNKDIF} when contamination is high ($>$5\%) and complex patterns are expected
+    \item \textbf{Use PNKDIF} only when contamination is high ($>$5\%) and complex patterns are expected; otherwise prefer PNKIF for simplicity
 \end{itemize}
 
 \subsection{Effect of Injection Rate}
@@ -260,16 +309,6 @@ We observe that contextual method performance can \emph{improve} with higher inj
 \end{itemize}
 
 Conversely, IF performance degrades at higher rates because global statistics become contaminated.
-
-\subsection{Diagnostic Framework}
-
-We propose running both IF and PNKIF on the same data:
-\begin{itemize}
-    \item If both agree: high confidence in the detection
-    \item If IF flags but PNKIF doesn't: likely a global anomaly
-    \item If PNKIF flags but IF doesn't: likely a contextual anomaly
-    \item Large overall disagreement: dataset contains contextual anomalies
-\end{itemize}
 
 \subsection{Practical Implications for AML}
 
@@ -285,15 +324,20 @@ Standard IF may miss these if the behavior is common globally. Peer-normalized m
 \subsection{Limitations}
 
 \begin{itemize}
-    \item Injection-based evaluation: real contextual labels are rare in public datasets
-    \item Context feature selection: performance depends on choosing appropriate context features
-    \item Computational cost: PNKIF/PNKDIF require K-NN computation, adding overhead
-    \item PNKDIF variance: deep projections introduce randomness, requiring multiple seeds
+    \item \textbf{Injection-based evaluation:} Real contextual labels are rare in public datasets. We frame injection as controlled falsification, not proxy for reality.
+    \item \textbf{Location-scale assumption:} We model context as inducing mean/variance shifts. Complex conditional distributions (multimodality, shape changes) require learned models.
+    \item \textbf{Context feature selection:} Performance depends on choosing appropriate context features; poor context leads to poor peer groups.
+    \item \textbf{Computational cost:} PNKIF/PNKDIF require K-NN computation, adding overhead for large datasets.
+    \item \textbf{AUROC limitations:} This metric may not reflect operational AML performance under extreme imbalance.
 \end{itemize}
 
 \section{Conclusion}
 
-We presented an empirical study of contextual vs. global anomaly detection for transaction monitoring. Our experiments demonstrate that method effectiveness depends on anomaly type: IF for global anomalies, PNKIF for contextual anomalies at moderate contamination, and PNKDIF for high-contamination scenarios. We propose using multiple methods as a diagnostic tool. Future work includes validation on proprietary AML data with natural contextual labels and investigation of adaptive method selection.
+We presented an empirical study of contextual vs. global anomaly detection for transaction monitoring. Our key finding is that method effectiveness depends on anomaly type: IF for global anomalies, PNKIF for contextual anomalies at moderate contamination. The deep variant (PNKDIF) provides limited additional benefit.
+
+More importantly, we propose reframing contextual detection as a \emph{diagnostic tool}: disagreement between global and contextual methods signals the presence of contextual structure. This provides practitioners with actionable guidance beyond method selection.
+
+Future work includes validation on proprietary AML data with natural contextual labels, formalization of the disagreement diagnostic as a statistical test, and investigation of adaptive method selection based on data characteristics.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
