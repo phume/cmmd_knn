@@ -111,11 +111,43 @@ This confirms that the peer-based approach---not the MLP projections---drives th
 
 PNKDIF scales as $O(N \log N)$ due to the K-NN step using ball-tree indexing. On SAML-D (293K samples), PNKIF processes the full dataset in approximately 3 minutes. The overhead versus DIF is ~25\%, primarily from neighbor search.
 
+\subsection{Standard Benchmark Datasets (ODDS/DAMI)}
+
+To provide a comprehensive evaluation, we also test on 12 standard benchmark datasets from the ODDS and DAMI repositories~\cite{calikus2025context}. Unlike our synthetic and injected datasets, these contain predominantly \emph{global} anomalies that are unusual everywhere, not context-specific.
+
+\begin{table}[h]
+\centering
+\caption{AUROC on standard benchmark datasets (5 seeds). These datasets contain global anomalies---context-based methods are not expected to outperform.}
+\label{tab:odds_results}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Dataset & PNKIF & PNKIF-SNN & ROCOD & IF \\
+\midrule
+Arrhythmia & 0.725 & 0.721 & 0.659 & \textbf{0.791} \\
+Cardio & 0.741 & 0.727 & 0.724 & \textbf{0.949} \\
+Glass & 0.711 & 0.692 & \textbf{0.883} & 0.765 \\
+HeartDisease & 0.633 & 0.627 & 0.544 & \textbf{0.725} \\
+Ionosphere & 0.810 & 0.813 & \textbf{0.901} & 0.818 \\
+Lymphography & 0.826 & 0.787 & 0.360 & \textbf{0.841} \\
+Pima & 0.507 & 0.508 & 0.551 & \textbf{0.604} \\
+Vowels & \textbf{0.829} & 0.820 & 0.822 & 0.721 \\
+WBC & 0.852 & 0.871 & 0.677 & \textbf{0.958} \\
+WDBC & 0.829 & 0.837 & 0.938 & \textbf{0.982} \\
+\midrule
+\textbf{Wins} & 1 & 0 & 2 & \textbf{7} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Key observation}: IF dominates on these benchmarks (7/10 wins), confirming that standard anomaly detection datasets contain primarily global anomalies. ROCOD excels on Glass and Ionosphere, while PNKIF wins only on Vowels. This underscores our main thesis: PNKIF provides value specifically when \emph{contextual} anomalies exist, not as a universal replacement for traditional methods.
+
 \subsection{Summary}
 
 \begin{itemize}
     \item \textbf{Use PNKIF} when anomalies are contextual (behavior unusual for the specific context)
     \item \textbf{Use IF/DIF} when anomalies are global (unusual everywhere)
+    \item PNKIF-SNN provides marginal improvement in high-dimensional context spaces
     \item MLP projections (PNKDIF) provide marginal benefit; simple peer normalization is sufficient
     \item Real-world applicability demonstrated on SAML-D: detecting accounts with behavior patterns inconsistent with their geographic profile
 \end{itemize}

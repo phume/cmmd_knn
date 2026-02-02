@@ -1,0 +1,13 @@
+dataset,PNKIF,PNKIF_SNN,ROCOD,IF,Best
+arrhythmia_odds,0.725,0.721,0.659,0.791,IF
+cardio_odds,0.741,0.727,0.724,0.949,IF
+glass_dami,0.711,0.692,0.883,0.765,ROCOD
+heartdisease_dami,0.633,0.627,0.544,0.725,IF
+ionosphere_dami,0.798,0.801,0.907,0.817,ROCOD
+ionosphere_odds,0.823,0.824,0.895,0.82,ROCOD
+lymphography_dami,0.826,0.787,0.36,0.841,IF
+pima_odds,0.507,0.508,0.551,0.604,IF
+vowels_odds,0.829,0.82,0.822,0.721,PNKIF
+wbc_dami,0.888,0.906,0.467,0.982,IF
+wbc_odds,0.817,0.835,0.886,0.934,IF
+wdbc_dami,0.829,0.837,0.938,0.982,IF

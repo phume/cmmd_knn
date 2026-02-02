@@ -1,7 +1,7 @@
 \section{Methodology}
 \label{sec:method}
 
-We present Peer-Normalized Kernel Deep Isolation Forest (PNKDIF), a training-free contextual anomaly detection method. Our approach combines peer-based normalization with random non-linear projections and Isolation Forest scoring. This section formalizes each component of the pipeline.
+We present Peer-Normalized Kernel Isolation Forest (PNKIF), a training-free contextual anomaly detection method. Our approach combines peer-based normalization with Isolation Forest scoring. We also describe PNKDIF, a variant that adds random MLP projections, though experiments show this provides marginal benefit.
 
 \subsection{Problem Formulation}
 
@@ -15,13 +15,14 @@ The goal is to compute an anomaly score $s_i \in [0, 100]$ for each sample, wher
 
 \subsection{Algorithm Overview}
 
-PNKDIF proceeds through four main stages:
+PNKIF proceeds through three main stages:
 \begin{enumerate}
     \item \textbf{Peer Selection}: For each point, identify $K$ nearest neighbors in context space
     \item \textbf{Peer Normalization}: Compute kernel-weighted peer statistics and z-score normalize behavioral features
-    \item \textbf{Random Projection}: Apply $M$ frozen randomly-initialized MLPs to create diverse non-linear representations
-    \item \textbf{Isolation Scoring}: Run Isolation Forest on each representation and aggregate scores
+    \item \textbf{Isolation Scoring}: Run Isolation Forest on the normalized features
 \end{enumerate}
+
+The variant PNKDIF adds a fourth step: applying $M$ frozen randomly-initialized MLPs before Isolation Forest. However, as we show in Section~\ref{sec:experiments}, this provides marginal benefit ($<2\%$) on most datasets.
 
 \subsection{Peer Selection and Kernel Weighting}
 
@@ -57,9 +58,19 @@ where $\epsilon = 10^{-8}$ ensures numerical stability when peers have homogeneo
 
 This normalization removes context-dependent location and scale effects, allowing downstream anomaly detection to focus on relative deviations.
 
-\subsection{Random MLP Projections}
+\subsection{SNN Weighting Variant (PNKIF-SNN)}
 
-To capture non-linear anomaly patterns, we project the normalized features through $M$ randomly-initialized single-layer MLPs:
+Inspired by ConQuest~\cite{calikus2025context}, we also evaluate a variant using Shared Nearest Neighbors (SNN) similarity instead of RBF kernel weighting. SNN is more robust to high-dimensional context spaces where Euclidean distances become less meaningful.
+
+The SNN weight between points $i$ and $j$ is:
+\begin{equation}
+    w_{ij}^{\text{SNN}} = \frac{|\mathcal{N}_K(i) \cap \mathcal{N}_K(j)|}{K}
+\end{equation}
+where $\mathcal{N}_K(i)$ denotes the K-nearest neighbors of point $i$. Points with more shared neighbors receive higher weights, capturing local structure better than distance-based metrics in high dimensions.
+
+\subsection{Random MLP Projections (PNKDIF Variant)}
+
+The PNKDIF variant adds random MLP projections to capture potential non-linear anomaly patterns. The normalized features are projected through $M$ randomly-initialized single-layer MLPs:
 \begin{equation}
     h_i^{(m)} = \text{LeakyReLU}(z_i W^{(m)} + b^{(m)}), \quad m = 1, \ldots, M
 \end{equation}
@@ -74,16 +85,23 @@ This approach is motivated by two observations:
 
 \subsection{Isolation Forest Scoring}
 
-For each projection $m$, we fit an Isolation Forest \cite{liu2008isolation} on the transformed representations $\{h_i^{(m)}\}_{i=1}^N$:
+\textbf{PNKIF}: We fit an Isolation Forest \cite{liu2008isolation} directly on the z-score normalized features $\{z_i\}_{i=1}^N$:
+\begin{equation}
+    s_i = \text{IF}(z_i)
+\end{equation}
+
+\textbf{PNKDIF}: For each projection $m$, we fit an Isolation Forest on the MLP-transformed representations $\{h_i^{(m)}\}_{i=1}^N$:
 \begin{equation}
     s_i^{(m)} = \text{IF}^{(m)}(h_i^{(m)})
 \end{equation}
 
-The Isolation Forest operates by recursively partitioning the feature space with random axis-aligned splits. Points that are isolated quickly (short path length) receive higher anomaly scores. In the MLP-transformed space, these axis-aligned cuts correspond to non-linear boundaries in the original z-score space.
+The Isolation Forest operates by recursively partitioning the feature space with random axis-aligned splits. Points that are isolated quickly (short path length) receive higher anomaly scores.
 
 \subsection{Score Aggregation}
 
-The final anomaly score aggregates across all projections and is rescaled to $[0, 100]$:
+For PNKIF, the Isolation Forest score is used directly (rescaled to $[0, 100]$).
+
+For PNKDIF, the final anomaly score aggregates across all projections:
 \begin{equation}
     s_i^{\text{raw}} = \frac{1}{M} \sum_{m=1}^{M} s_i^{(m)}
 \end{equation}
@@ -97,30 +115,30 @@ Table~\ref{tab:hyperparameters} summarizes the hyperparameters and their typical
 
 \begin{table}[h]
 \centering
-\caption{PNKDIF Hyperparameters}
+\caption{PNKIF/PNKDIF Hyperparameters}
 \label{tab:hyperparameters}
-\begin{tabular}{@{}lll@{}}
+\begin{tabular}{@{}llll@{}}
 \toprule
-Symbol & Description & Typical Range \\
+Symbol & Description & Typical Range & Variant \\
 \midrule
-$K$ & Number of neighbors & 50--200 \\
-$\gamma$ & RBF kernel bandwidth & Data-dependent \\
-$M$ & Number of random projections & 6--10 \\
-$d_h$ & Hidden dimension & 64--256 \\
-$T$ & Number of IF trees & 100--300 \\
-$\psi$ & IF subsample size & 256 \\
+$K$ & Number of neighbors & 50--200 & Both \\
+$\gamma$ & RBF kernel bandwidth & Data-dependent & Both \\
+$T$ & Number of IF trees & 100--300 & Both \\
+$\psi$ & IF subsample size & 256 & Both \\
+$M$ & Number of random projections & 6--10 & PNKDIF only \\
+$d_h$ & Hidden dimension & 64--256 & PNKDIF only \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Computational Complexity}
 
-The time complexity of PNKDIF is dominated by:
+The time complexity is dominated by:
 \begin{itemize}
     \item KD-tree construction and queries: $O(N \log N \cdot d_c)$
     \item Kernel weights and peer statistics: $O(N \cdot K \cdot (d_c + d_y))$
-    \item Random projections: $O(N \cdot M \cdot d_y \cdot d_h)$
-    \item Isolation Forest scoring: $O(N \cdot M \cdot T \cdot \log \psi)$
+    \item Isolation Forest scoring: $O(N \cdot T \cdot \log \psi)$
+    \item Random projections (PNKDIF only): $O(N \cdot M \cdot d_y \cdot d_h)$
 \end{itemize}
 
-For fixed hyperparameters, the overall complexity is $O(N \log N)$, making PNKDIF scalable to large datasets. The algorithm is also highly parallelizable: K-NN queries, projections, and IF scoring are independent per sample or per projection.
+For fixed hyperparameters, the overall complexity is $O(N \log N)$, making both PNKIF and PNKDIF scalable to large datasets. PNKIF is faster than PNKDIF by avoiding the projection step. On SAML-D (293K samples), PNKIF processes the full dataset in approximately 3 minutes.

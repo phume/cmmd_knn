@@ -27,31 +27,36 @@ Classical anomaly detection methods operate on the full feature space without di
 
 \textbf{Normalcy Score (NS)} methods compute z-scores relative to predicted behavior, where predictions come from regression or other supervised models trained on normal data. These approaches assume access to clean training data and labeled contexts.
 
+\textbf{ConQuest}~\cite{calikus2025context} approaches contextual anomaly detection from a different angle: automatic context discovery. Rather than assuming known context/behavior splits, ConQuest uses multi-objective optimization to find informative context subsets. It also introduces Shared Nearest Neighbors (SNN) distance for peer weighting, which is more robust in high-dimensional spaces than Euclidean distance.
+
 \subsection{Random Feature Methods}
 
 \textbf{Random Fourier Features} \cite{rahimi2007random} approximate shift-invariant kernels via random projections, enabling kernel methods to scale to large datasets. This theoretical foundation---that random projections can approximate complex functions---motivates our use of frozen MLPs.
 
 \textbf{Extreme Learning Machines} \cite{huang2006extreme} use single-layer networks with random hidden weights, training only the output layer. Our approach goes further by eliminating all training, using random projections purely for feature transformation before IF scoring.
 
-\subsection{Positioning of PNKDIF}
+\subsection{Positioning of PNKIF}
 
-Table~\ref{tab:comparison} positions PNKDIF relative to existing methods. Our method uniquely combines: (1) context-awareness via peer normalization, (2) non-linear decision boundaries via random projections, and (3) training-free operation.
+Table~\ref{tab:comparison} positions PNKIF relative to existing methods. Our method uniquely combines: (1) context-awareness via peer normalization, and (2) training-free operation via Isolation Forest.
 
 \begin{table}[h]
 \centering
 \caption{Comparison of anomaly detection methods}
 \label{tab:comparison}
-\begin{tabular}{@{}lccc@{}}
+\begin{tabular}{@{}lcc@{}}
 \toprule
-Method & Context-Aware & Non-Linear & Training-Free \\
+Method & Context-Aware & Training-Free \\
 \midrule
-IF \cite{liu2008isolation} & \texttimes & \texttimes & \checkmark \\
-DIF \cite{xu2023deep} & \texttimes & \checkmark & \checkmark \\
-QCAD \cite{liang2021conditional} & \checkmark & \texttimes & \checkmark \\
-ROCOD \cite{liang2023rocod} & \checkmark & \texttimes & \checkmark \\
-CVAE \cite{sohn2015learning} & \checkmark & \checkmark & \texttimes \\
-CWAE & \checkmark & \checkmark & \texttimes \\
-\textbf{PNKDIF (Ours)} & \checkmark & \checkmark & \checkmark \\
+IF \cite{liu2008isolation} & \texttimes & \checkmark \\
+DIF \cite{xu2023deep} & \texttimes & \checkmark \\
+QCAD \cite{liang2021conditional} & \checkmark & \checkmark \\
+ROCOD \cite{liang2023rocod} & \checkmark & \checkmark \\
+ConQuest \cite{calikus2025context} & \checkmark & \checkmark \\
+CVAE \cite{sohn2015learning} & \checkmark & \texttimes \\
+CWAE & \checkmark & \texttimes \\
+\textbf{PNKIF (Ours)} & \checkmark & \checkmark \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+Unlike QCAD and ROCOD which use uniform K-NN weighting, PNKIF employs RBF kernel weighting for smoother peer statistics. PNKIF-SNN adopts ConQuest's Shared Nearest Neighbors approach for better performance in high-dimensional context spaces. Unlike deep methods (CVAE, CWAE), PNKIF requires no training and avoids overfitting risks.
