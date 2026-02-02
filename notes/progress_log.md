@@ -566,3 +566,30 @@ This is a well-known pattern ("residual analysis"). But combining it with IF for
 - [ ] Create visualization of IF vs PNKIF on contextual anomalies
 - [ ] Draft AML-focused introduction
 - [ ] Consider adding IBM AML-Data for additional validation
+
+---
+
+## Clean Experiments - No Injection (2026-02-01)
+
+### Results on Original Labels (5 seeds)
+
+| Dataset | IF | IF_concat | PNKIF | ROCOD | Winner |
+|---------|-----|-----------|-------|-------|--------|
+| SAML-D | **0.932** | 0.897 | 0.866 | 0.326 | IF |
+| PaySim | 0.691 | **0.777** | 0.451 | 0.363 | IF_concat |
+| CreditCard | **0.949** | 0.948 | 0.932 | 0.910 | IF |
+
+### Interpretation
+
+**IF wins on all datasets** because labeled anomalies are **global** (unusual everywhere).
+
+### Workshop Paper Strategy
+
+**Honest framing:**
+1. Report clean results showing IF wins on global anomalies
+2. Include injection experiments as controlled evaluation of contextual detection
+3. Emphasize diagnostic value: "PNKIF vs IF divergence signals contextual structure"
+4. Highlight interpretability for AML compliance
+
+**Key message:**
+> "PNKIF is not meant to replace IF, but to complement it. When anomalies are global, IF is sufficient. When anomalies are contextual (normal globally, unusual for context), PNKIF provides value. Running both methods serves as a diagnostic for the nature of anomalies in your data."
