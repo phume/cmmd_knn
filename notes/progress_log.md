@@ -1269,3 +1269,58 @@ Paper survives Reviewer #2 by:
 3. Owning limitations explicitly
 4. Elevating diagnostic framework as main contribution
 5. Framing PNKDIF honestly as mixed/negative result
+
+---
+
+## 2026-02-02: Final Polish - All Changes Implemented
+
+### Changes Made
+
+| Change | Status | Details |
+|--------|--------|---------|
+| Reframe as empirical study | DONE | Abstract says "empirical study---not a new detection algorithm" |
+| Rewrite contributions | DONE | 5 empirical findings, not method claims |
+| Add Scope/Non-Claims | DONE | New subsection disclaiming universal superiority |
+| Shorten PNKIF section | DONE | Equations condensed to single paragraph |
+| Injection justification | DONE | "controlled falsification test" framing |
+| Add diagnostic table | DONE | Table 6: Agreement@5%, P@5% vs injection rate |
+| Add P@5% metric | DONE | Workload-oriented metric included |
+| Quote-worthy conclusion | DONE | "first question should not be 'which model is best?'" |
+| Reframe PNKDIF | DONE | Limited/negative result framing |
+
+### Diagnostic Analysis Results (Table 6)
+
+| Injection Rate | Agreement@5% | IF P@5% | PNKIF P@5% |
+|----------------|--------------|---------|------------|
+| 0% (original) | 29.2% | 11.5% | 4.0% |
+| 1% | 28.5% | 12.1% | 11.9% |
+| 3% | 26.1% | 13.9% | 21.5% |
+| 5% | 25.0% | 16.1% | 30.2% |
+| 10% | 24.0% | 21.1% | **38.8%** |
+
+**Key insight:** Agreement drops monotonically (29% → 24%) as contextual contamination increases. PNKIF P@5% improves 10x (4% → 39%) while IF only 2x (12% → 21%).
+
+### Paper Status
+
+- **Format:** IEEE conference (5 pages)
+- **Tables:** 6 total (Original, Context Mismatch, Geographic Swap, Win Rate, Diagnostic)
+- **Location:** `notes/workshop_paper/main.tex`
+- **PDF:** `notes/workshop_paper/main.pdf`
+
+### Ready for Submission
+
+The paper now addresses all Reviewer #2 criticisms:
+1. Identity clear: empirical study, not method paper
+2. Injection justified: controlled falsification test
+3. Limitations owned: location-scale assumption, AUROC
+4. Diagnostic quantified: Table 6 with P@5%
+5. Quote-worthy conclusion added
+
+### Target Venues
+
+| Venue | Deadline | Notes |
+|-------|----------|-------|
+| ICAIF 2026 | TBD | ACM AI in Finance |
+| KDD Workshop | TBD | Anomaly Detection |
+| IEEE BigData Workshop | TBD | Finance track |
+| Expert Systems with Applications | Rolling | Journal option |
