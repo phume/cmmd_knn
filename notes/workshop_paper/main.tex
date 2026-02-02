@@ -94,28 +94,9 @@ Isolation Forest~\cite{liu2008isolation} detects anomalies by measuring how easi
 
 \subsection{Peer-Normalized Kernel Isolation Forest (PNKIF)}
 
-PNKIF is \emph{not} proposed as a novel anomaly detection paradigm. Instead, it serves as a minimal, interpretable reference implementation designed to isolate the effect of peer-based normalization on anomaly scoring.
+PNKIF is \emph{not} proposed as a novel anomaly detection paradigm. Instead, it serves as a minimal, interpretable reference implementation designed to isolate the effect of peer-based normalization on anomaly scoring. By deliberately avoiding learned representations or deep architectures, observed performance differences can be attributed to \emph{contextual normalization} rather than representational capacity.
 
-By combining kernel-weighted peer normalization with a standard Isolation Forest scorer, PNKIF deliberately avoids learned representations, end-to-end optimization, or deep architectures. This design choice ensures that observed performance differences can be attributed to \emph{contextual normalization}, rather than representational capacity or training artifacts.
-
-The method applies peer normalization before Isolation Forest:
-
-\begin{enumerate}
-    \item \textbf{Compute peer weights:} For each point $i$, compute RBF kernel weights based on context similarity:
-    \[
-    w_{ij} = \exp\left(-\frac{\|\mathbf{c}_i - \mathbf{c}_j\|^2}{2\gamma^2}\right)
-    \]
-
-    \item \textbf{Compute peer statistics:} Weighted mean and standard deviation:
-    \[
-    \boldsymbol{\mu}_i = \frac{\sum_j w_{ij} \mathbf{x}_j}{\sum_j w_{ij}}, \quad
-    \boldsymbol{\sigma}_i = \sqrt{\frac{\sum_j w_{ij} (\mathbf{x}_j - \boldsymbol{\mu}_i)^2}{\sum_j w_{ij}}}
-    \]
-
-    \item \textbf{Normalize:} $\tilde{\mathbf{x}}_i = (\mathbf{x}_i - \boldsymbol{\mu}_i) / \boldsymbol{\sigma}_i$
-
-    \item \textbf{Score:} Apply Isolation Forest to normalized behaviors $\{\tilde{\mathbf{x}}_i\}$
-\end{enumerate}
+The method computes kernel-weighted peer statistics using RBF weights $w_{ij} = \exp(-\|\mathbf{c}_i - \mathbf{c}_j\|^2 / 2\gamma^2)$, then normalizes each point's behavior by its peer mean and standard deviation: $\tilde{\mathbf{x}}_i = (\mathbf{x}_i - \boldsymbol{\mu}_i) / \boldsymbol{\sigma}_i$. Isolation Forest is then applied to the normalized behaviors.
 
 \subsection{On the Role of Random Projections (PNKDIF)}
 
@@ -274,19 +255,38 @@ Temporal Shift & \textbf{12/12} & 0/12 & 0/12 \\
 
 \section{Discussion}
 
-\subsection{Contextual Detection as a Diagnostic Signal}
+\subsection{Quantifying Method Disagreement}
 
-A key finding of this study is that \emph{agreement and disagreement} between global and contextual detectors is itself informative.
+A key finding of this study is that \emph{agreement and disagreement} between global and contextual detectors is itself informative. We quantify this by measuring overlap in top-5\% flagged samples (Agreement@5\%) and precision at rank 5\% (P@5\%) as contextual contamination increases (Table~\ref{tab:diagnostic}).
 
-Empirically, we observe three regimes:
+\begin{table}[htbp]
+\centering
+\caption{Diagnostic Metrics: IF vs PNKIF Agreement (PaySim, 5 seeds)}
+\label{tab:diagnostic}
+\begin{tabular}{lcccc}
+\toprule
+Injection & Agreement & IF & PNKIF \\
+Rate & @5\% & P@5\% & P@5\% \\
+\midrule
+0\% (original) & 29.2\% & 11.5\% & 4.0\% \\
+1\% & 28.5\% & 12.1\% & 11.9\% \\
+3\% & 26.1\% & 13.9\% & 21.5\% \\
+5\% & 25.0\% & 16.1\% & 30.2\% \\
+10\% & 24.0\% & 21.1\% & \textbf{38.8\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
+Two patterns emerge: (1) Agreement decreases monotonically as contextual contamination increases, from 29\% to 24\%. (2) PNKIF precision improves dramatically (4\% $\rightarrow$ 39\%) while IF precision grows modestly (12\% $\rightarrow$ 21\%). This confirms that disagreement reliably signals contextual structure.
+
+\subsection{Diagnostic Workflow}
+
+This suggests a practical diagnostic: run IF and PNKIF on the same data.
 \begin{itemize}
-    \item \textbf{Agreement at high scores:} Anomalies are globally unusual; context adds little value.
-    \item \textbf{Contextual-only detection:} Behavior is common globally but anomalous for its peer group.
-    \item \textbf{Widespread disagreement:} The dataset contains substantial contextual structure.
+    \item \textbf{High agreement + similar precision:} Anomalies are global; IF is sufficient.
+    \item \textbf{Low agreement + PNKIF outperforms:} Contextual anomalies present; use PNKIF.
+    \item \textbf{PNKIF precision $\gg$ IF precision:} Strong contextual signal in the data.
 \end{itemize}
-
-This suggests a practical diagnostic workflow: practitioners can run a global detector (e.g., IF) alongside a contextual detector (e.g., PNKIF). Divergence between the two signals that context-aware modeling is warranted, while agreement indicates that global detection is sufficient.
 
 This reframing resolves a long-standing ambiguity in AML systems, where contextual methods are often deployed without evidence that context is actually informative.
 
@@ -335,7 +335,7 @@ Standard IF may miss these if the behavior is common globally. Peer-normalized m
 
 We presented an empirical study of contextual vs. global anomaly detection for transaction monitoring. Our key finding is that method effectiveness depends on anomaly type: IF for global anomalies, PNKIF for contextual anomalies at moderate contamination. The deep variant (PNKDIF) provides limited additional benefit.
 
-More importantly, we propose reframing contextual detection as a \emph{diagnostic tool}: disagreement between global and contextual methods signals the presence of contextual structure. This provides practitioners with actionable guidance beyond method selection.
+More importantly, we propose reframing contextual detection as a \emph{diagnostic tool}: disagreement between global and contextual methods signals the presence of contextual structure. Our results suggest that the first question in anomaly detection should not be ``which model is best?'' but rather ``does context matter at all for this dataset?''
 
 Future work includes validation on proprietary AML data with natural contextual labels, formalization of the disagreement diagnostic as a statistical test, and investigation of adaptive method selection based on data characteristics.
 
