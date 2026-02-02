@@ -67,7 +67,7 @@ Instead, we focus on the most common and operationally relevant form of contextu
 
 \subsection{Anomaly Detection in AML}
 
-Machine learning for AML has been extensively surveyed~\cite{chen2018ml}. Common approaches include rule-based systems, supervised classification, and unsupervised anomaly detection. Isolation Forest~\cite{liu2008isolation} is widely used due to its efficiency and effectiveness on high-dimensional data.
+Machine learning for AML has been extensively surveyed~\cite{chen2018ml}. Common approaches include rule-based systems, supervised classification, and unsupervised anomaly detection. Isolation Forest~\cite{liu2008isolation} is widely used due to its efficiency and effectiveness on high-dimensional data. Recent work by Das et al.~\cite{das2024tree} demonstrates that tree-based ensembles remain state-of-the-art for anomaly discovery in practice, outperforming more complex models while providing interpretable decision boundaries suitable for human review.
 
 \subsection{Contextual Anomaly Detection}
 
@@ -288,7 +288,7 @@ This suggests a practical diagnostic: run IF and PNKIF on the same data.
     \item \textbf{PNKIF precision $\gg$ IF precision:} Strong contextual signal in the data.
 \end{itemize}
 
-This reframing resolves a long-standing ambiguity in AML systems, where contextual methods are often deployed without evidence that context is actually informative.
+This reframing resolves a long-standing ambiguity in AML systems, where contextual methods are often deployed without evidence that context is actually informative. Moreover, our disagreement diagnostic can inform active learning systems~\cite{das2024tree}: instances where IF and PNKIF disagree are natural candidates for human review, as they represent cases where contextual judgment is required.
 
 \subsection{When Does Context Help?}
 
