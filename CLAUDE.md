@@ -17,24 +17,92 @@ This file captures insights, preferences, and notes learned from working on this
 - **Ask before assuming**: If unclear about task scope, clarify rather than doing extra work
 - **Be concise**: Don't over-explain, get to the point
 
-## Project-Specific Notes
+## Current Status (2026-02-01)
 
-### PNKDIF Method
-- Core idea: Peer-normalized features + frozen random MLP projections + Isolation Forest
-- Key novelty claims:
-  1. First training-free contextual anomaly detector with non-linear decision boundaries
-  2. Kernel-weighted peer normalization (soft K-NN instead of hard cutoff)
-- Main limitations: Curse of dimensionality in context space, assumes simple shift/scale relationship
+### Critical Issue: PNKIF vs ROCOD Novelty
 
-### Paper Structure
-- IEEE conference format (IEEEtran document class)
-- Sections: Introduction, Related Work, Methodology, Experiments, Discussion, Conclusion
-- Experiments section has placeholder tables (marked with TODO) for actual results
+**Problem**: PNKIF is essentially ROCOD with two swaps:
+- Peer weighting: uniform → RBF kernel
+- Scoring: max(z-score) → Isolation Forest
 
-### Key References
-- Deep Isolation Forest (Xu et al., 2023) - inspiration for random MLP projections
-- QCAD/ROCOD (Liang et al.) - existing contextual anomaly detection baselines
-- Random Fourier Features (Rahimi & Recht, 2007) - theoretical basis for frozen projections
+**Latest benchmark (all datasets):**
+
+| Dataset | IF | ROCOD | PNKIF | Winner |
+|---------|-----|-------|-------|--------|
+| Syn-Linear | 0.616 | **1.000** | **1.000** | Tie |
+| Syn-Cluster | 0.492 | **0.929** | 0.920 | ROCOD +1% |
+| Syn-HighDim | 0.835 | 0.848 | **0.906** | PNKIF +6% |
+| Syn-Nonlinear | 0.815 | **1.000** | **1.000** | Tie |
+| Adult-shift | 0.994 | 0.942 | **0.997** | PNKIF +0% |
+| Adult-swap | 0.503 | 0.526 | **0.549** | PNKIF +2% |
+| Bank-shift | 0.999 | 0.936 | **0.999** | PNKIF +0% |
+| Bank-swap | 0.486 | 0.517 | **0.528** | PNKIF +1% |
+| Cardio | **0.947** | 0.761 | 0.765 | IF +18% |
+| Thyroid | **0.965** | 0.572 | 0.655 | IF +31% |
+
+**Verdict**: PNKIF wins 6/10 but margins are small (0-6%). Only meaningful win is Syn-HighDim (+6%).
+
+### ConQuest Paper Review
+
+Read "Context discovery for anomaly detection" (Calikus et al., 2025). Key takeaways:
+
+1. **SNN (Shared Nearest Neighbors) distance** - More robust to high-dim context
+2. **CoNN distance** = Euclidean(behavior) / SNN(context) - Jointly considers both spaces
+3. **Multi-context ensemble** - Run on different context subsets, average scores
+4. **Three objectives for context quality**:
+   - Context-behavior dependency (distance correlation)
+   - Minimum redundancy between contexts
+   - Maximum discrimination (kurtosis of scores)
+
+### New Methods Implemented (from ConQuest)
+
+Added to `src/models/pnkdif.py`:
+- **PNKIF_SNN**: Uses SNN-based peer weighting instead of RBF kernel
+- **MCAF**: Multi-Context Anomaly Factor using CoNN distance
+- **MultiContextPNKIF**: Ensemble over multiple context subsets
+- **compute_context_quality()**: Diagnostic for context relevance
+
+**Speed comparison (N=5000):**
+| Method | AUROC | Time | vs ROCOD |
+|--------|-------|------|----------|
+| ROCOD | 0.929 | 0.2s | 1.0x |
+| PNKIF | 0.924 | 0.4s | 2x slower |
+| PNKIF_SNN | 0.928 | 5.1s | **25x slower** |
+| MCAF | 0.922 | 14.1s | **70x slower** |
+
+**Problem**: SNN/MCAF are too slow without significant accuracy gain.
+
+### Paper Review Feedback
+
+Did mock peer review. Key concerns:
+1. **Novelty over ROCOD is incremental** - need stronger differentiation
+2. **Context feature selection unaddressed** - the hard problem
+3. **Swap injection results missing** - should include negative results
+4. **Real dataset results favor IF** - PNKIF only wins with injection
+5. **Missing statistical tests** - need Wilcoxon, CD diagrams
+6. **Missing citations** - ConQuest, CAD (Song et al., 2007)
+
+## Options to Improve Novelty
+
+### Option A: Hybrid ROCOD + PNKIF
+Combine best of both:
+- Robust statistics (median/MAD) from ROCOD
+- RBF kernel weighting from PNKIF
+- Isolation Forest scoring from PNKIF
+
+### Option B: Focus on Diagnostic Framework
+De-emphasize PNKIF as "new method", emphasize:
+- Comparing PNKIF vs IF reveals if context matters
+- This diagnostic is the contribution, not the algorithm
+
+### Option C: Add Context Discovery
+Implement ConQuest-style automatic context selection as preprocessing.
+
+### Option D: Multi-Context Ensemble for AML
+For AML specifically, ensemble over:
+- Geographic context (country, domestic/cross-border)
+- Customer context (type, segment, account age)
+- Temporal context (time patterns)
 
 ## File Organization
 
@@ -45,123 +113,40 @@ CDIF/
 │   ├── sections/    # Individual sections
 │   └── references.bib
 ├── design_notes/    # Method formalization, literature comparison
-├── src/             # Source code (to be implemented)
-│   ├── models/      # PNKDIF implementation
-│   ├── baselines/   # Comparison methods
-│   ├── data/        # Data loading utilities
-│   ├── evaluation/  # Metrics and evaluation
-│   └── experiments/ # Experiment scripts
-├── configs/         # Configuration files
-├── scripts/         # Utility scripts
-└── related_work/    # Reference papers
+├── src/
+│   ├── models/
+│   │   ├── pnkdif.py      # PNKIF, PNKDIF, PNKIF_SNN, MCAF, etc.
+│   │   └── baselines.py   # IF, ROCOD, QCAD, LOF, etc.
+│   ├── data/
+│   │   ├── synthetic.py   # Synthetic dataset generators
+│   │   ├── real_datasets.py  # Adult, Bank, Cardio loaders
+│   │   └── fraud_datasets.py # SAML-D, Thyroid, etc.
+│   └── evaluation/
+├── related_work/
+│   └── conquest Context discovery for anomaly detection.pdf
+└── results/
 ```
 
-## Completed Tasks
+## Key References
 
-- [x] Implement PNKDIF in Python (src/models/pnkdif.py)
-- [x] Set up baseline implementations (src/models/baselines.py)
-- [x] Phase 1: Synthetic validation (syn_linear, syn_scale, syn_multimodal)
-- [x] Phase 2: Ablation studies (syn_nonlinear, hyperparameter sensitivity K/M/d_h)
-- [x] Phase 3: Scaling studies (N=1K to 50K)
-- [x] Phase 4: Real/semi-synthetic datasets (Adult, Bank, Cardio)
-- [x] Results in results/phase*.csv, analysis in notes/
+- **ROCOD**: Liang & Parthasarathy, "Robust Contextual Outlier Detection" (CIKM 2016)
+- **QCAD**: Liang et al., conditional anomaly detection
+- **ConQuest**: Calikus et al., "Context discovery for anomaly detection" (2025)
+- **Deep Isolation Forest**: Xu et al. (2023)
+- **CAD**: Song et al. (2007) - original contextual anomaly paper
 
-## Key Results
+## Next Steps
 
-### Synthetic Data (Phases 1-3)
+1. [ ] **Decide on differentiation strategy** (Option A/B/C/D above)
+2. [ ] **If Option A**: Implement hybrid ROCOD+PNKIF method
+3. [ ] **If Option B**: Reframe paper around diagnostic framework
+4. [ ] **Run statistical tests** (Wilcoxon signed-rank)
+5. [ ] **Update paper** with honest positioning
+6. [ ] **Add missing citations** (ConQuest, CAD)
 
-| Dataset | PNKDIF AUROC | IF AUROC | Winner |
-|---------|--------------|----------|--------|
-| syn_linear | 0.9997 | 0.6595 | PNKDIF (+51%) |
-| syn_scale | 0.9990 | 0.9672 | PNKDIF (+3%) |
-| syn_nonlinear | 1.0000 | 0.8199 | PNKDIF (+22%) |
-| syn_multimodal | 0.8673 | 0.5015 | PNKDIF (+73%)* |
+## Notes
 
-*Note: IF_concat (0.9803) beats PNKDIF on multimodal - known limitation
-
-### Real Data (Phase 4)
-
-| Dataset | Best Method | AUROC | Notes |
-|---------|-------------|-------|-------|
-| adult_shift | PNKDIF_noMLP | 0.996 | All methods ~0.99 |
-| adult_swap | PNKDIF | 0.558 | Near-random for all |
-| bank_shift | IF/PNKDIF_noMLP | 0.999 | All methods ~0.99 |
-| bank_swap | PNKDIF | 0.538 | Near-random for all |
-| cardio | IF | 0.949 | PNKDIF at 0.780 |
-
-**Key insight**: PNKDIF_noMLP often best - random MLP may hurt on low-dim real data. Swap injection is fundamentally hard (behavior IS normal, just from different context).
-
-## Phase 4 No-Download Results (COMPLETED)
-
-Ran on Syn-HighDimContext, Syn-Cluster, Thyroid with 10 seeds x 12 methods = 360 runs.
-
-### Syn-HighDimContext (20D context, only 2 informative)
-| Method | AUROC |
-|--------|-------|
-| PNKDIF_uniform | 0.925 |
-| PNKDIF | 0.925 |
-| ROCOD | 0.865 |
-| IF | 0.841 |
-| IF_concat | 0.593 |
-
-**Key insight**: PNKDIF handles high-dim context; concat methods fail.
-
-### Syn-Cluster (5 clusters with cluster-specific behavior)
-| Method | AUROC |
-|--------|-------|
-| PNKDIF_uniform | 0.954 |
-| PNKDIF | 0.953 |
-| ROCOD | 0.947 |
-| IF/PNKDIF_global | 0.50 |
-
-**Key insight**: Context-ignoring methods fail completely.
-
-### Thyroid (ODDS - non-contextual anomalies)
-| Method | AUROC |
-|--------|-------|
-| IF_concat | 0.977 |
-| PNKDIF_global | 0.955 |
-| IF | 0.955 |
-| PNKDIF | 0.703 |
-
-**Key insight**: Thyroid has global anomalies, not contextual. PNKDIF_global outperforms peer-normalized variants.
-
-## Items Implemented
-
-### Datasets (loaders in src/data/):
-- **SAML-D** - `fraud_datasets.py`
-- **IEEE-CIS Fraud** - `fraud_datasets.py`
-- **PaySim** - `fraud_datasets.py`
-- **Credit Card Fraud** - `fraud_datasets.py`
-- **Thyroid (ODDS)** - `fraud_datasets.py` (auto-downloads)
-- **Syn-HighDimContext** - `synthetic.py`
-- **Syn-Cluster** - `synthetic.py`
-
-### Method variants (in src/models/pnkdif.py):
-- **PNKDIF_single** (M=1)
-- **PNKDIF_global** (global normalization)
-
-### Other:
-- 10 seeds: [42, 123, 456, 789, 1011, 1213, 1415, 1617, 1819, 2021]
-- Feature caching: fraud_datasets.py saves to data/cache/
-
-## Future Tasks
-
-- [ ] **Download fraud datasets** (user needs to download from Kaggle):
-  - SAML-D: https://www.kaggle.com/datasets/berkanoztas/synthetic-transaction-monitoring-dataset-aml
-  - IEEE-CIS: https://www.kaggle.com/competitions/ieee-fraud-detection
-  - PaySim: https://www.kaggle.com/datasets/ealaxi/paysim1
-  - Credit Card: https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
-- [ ] Run Phase 4 Extended: `python scripts/run_phase4_extended.py`
-- [ ] Update paper experiments section with Phase 4 no-download results
-- [ ] Add statistical testing (Wilcoxon, critical difference diagrams)
-- [ ] γ (kernel bandwidth) sensitivity analysis
-- [ ] Finalize paper for submission
-
-## Experiment Runner Notes
-
-- `scripts/run_phase1.py`: Non-interactive runner with checkpoint/resume
-- Results saved incrementally to `results/phase1_raw.csv`
-- Checkpoint in `results/phase1_state.json` for crash recovery
-- Logs to `logs/phase1.log`
-- Errors to `results/phase1_errors.csv`
+- MLP projections (PNKDIF) provide marginal benefit (<2%), PNKIF (no MLP) is recommended
+- Swap injection is fundamentally hard - all methods score ~0.52 (near random)
+- Global anomalies (Cardio, Thyroid): IF wins by large margin
+- Context selection is the real problem - all methods assume it's given

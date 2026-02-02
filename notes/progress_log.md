@@ -1324,3 +1324,42 @@ The paper now addresses all Reviewer #2 criticisms:
 | KDD Workshop | TBD | Anomaly Detection |
 | IEEE BigData Workshop | TBD | Finance track |
 | Expert Systems with Applications | Rolling | Journal option |
+
+---
+
+## 2026-02-02: Journal Version - Full Enhancement Plan
+
+### Goal
+Expand from 5-page workshop to 8+ page journal paper with practitioner-focused additions.
+
+### Additions to Implement
+
+| Addition | Status | Notes |
+|----------|--------|-------|
+| Formalize disagreement as statistical test | TODO | H₀/H₁, threshold, decision rule |
+| Extended Precision@K analysis | TODO | P@1%, P@5%, P@10% curves/table |
+| Regulatory alignment section | TODO | FATF, BSA/AML, SR 11-7 |
+| Expanded failure mode analysis | TODO | When PNKIF fails |
+| Open-source implementation mention | TODO | Link to GitHub |
+| Practitioner summary box | TODO | 3-5 bullet actionable takeaways |
+| Decision flowchart description | TODO | IF→PNKIF→Disagree→Action |
+| Computational benchmark | TODO | Time to process N transactions |
+
+### Not Adding (No Real Data)
+
+| Suggestion | Reason |
+|------------|--------|
+| Alert reduction "23%" | Would be making up numbers |
+| Daily alert volume table | No operational deployment data |
+| Anonymized case examples | Only have synthetic data |
+
+### Implementation Order
+
+1. Run extended Precision@K analysis script
+2. Add formalized statistical test for disagreement
+3. Add regulatory alignment section
+4. Expand failure modes in limitations
+5. Add practitioner summary
+6. Add computational benchmark
+7. Mention open-source code
+8. Compile and review
