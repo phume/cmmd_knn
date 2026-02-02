@@ -1035,3 +1035,237 @@ This is exactly what we want to show:
 2. [ ] Add figures (AUROC curves, diagnostic framework diagram)
 3. [ ] Check venue deadlines
 4. [ ] Submit
+
+---
+
+## 2026-02-02: Journal Version - Major Revision Plan
+
+### Motivation
+
+Reviewer #2 feedback (aggressive but valid) identified key weaknesses:
+1. Paper reads like a method proposal but PNKIF is not novel
+2. Injection-based evaluation feels artificial
+3. Definition of "contextual anomaly" is narrow
+4. PNKDIF adds complexity without consistent benefit
+5. AUROC not appropriate for AML operational context
+6. Diagnostic idea is undersold
+7. Paper straddles method/empirical study awkwardly
+
+### Strategy: Reframe as Empirical Study
+
+**Core identity shift:** This is NOT a method paper. It's an empirical study using PNKIF as a "diagnostic lens" to answer "when does context help?"
+
+### Revision Plan
+
+#### Phase 1: Rewrite Core Sections
+
+| Section | Current State | Target State |
+|---------|---------------|--------------|
+| Contributions | Lists PNKIF as contribution | Reframe as empirical findings with PNKIF as vehicle |
+| Methods | Full algorithmic detail | Move detail to appendix, emphasize simplicity |
+| Injection | Brief justification | Strong "controlled falsification test" framing |
+| Discussion | Basic diagnostic idea | Elevated diagnostic framework with formalization |
+
+#### Phase 2: Add Critical New Content
+
+1. **"What This Paper Does NOT Claim" subsection**
+   - Not claiming universal superiority
+   - Not modeling complex conditional distributions
+   - Focus on location-scale contextuality only
+
+2. **Stronger injection justification**
+   - Frame as controlled falsification test
+   - Add negative control (random injection should NOT help PNKIF)
+   - Multiple qualitatively different injections → same conclusions
+
+3. **PNKDIF as negative result**
+   - Honest framing: "We tested deep projections; they don't consistently help"
+   - Keep results showing it wins at high contamination on geographic_swap
+   - Frame as "specific benefit in limited scenarios"
+
+4. **Acknowledge AUROC limitations**
+   - Add paragraph on AUROC issues in AML
+   - Consider adding precision@k or rank correlation analysis
+   - Tie to diagnostic disagreement story
+
+5. **Formalize diagnostic framework**
+   - Agreement rate vs injection rate plot
+   - Show monotonic relationship
+   - Frame disagreement as empirical statistic
+
+#### Phase 3: Structural Changes
+
+1. Move method algorithmic details to appendix
+2. Expand discussion section (currently underselling best idea)
+3. Add limitations subsection (explicit, honest)
+4. Tighten introduction to match empirical study identity
+
+### Specific Rewrites (From Reviewer Feedback)
+
+#### 1. Contributions (CRITICAL)
+
+**Before:**
+```
+1. An empirical comparison of global (IF) vs. contextual (PNKIF, PNKDIF)...
+2. Domain-grounded injection strategies...
+3. Evidence that method effectiveness depends on anomaly type...
+```
+
+**After:**
+```
+1. Empirical clarification of when context helps - systematic study showing
+   effectiveness depends on anomaly type
+2. Contextual anomaly detection as a diagnostic tool - disagreement between
+   methods signals contextual structure
+3. Controlled evaluation via domain-grounded injections - not proxy for reality,
+   but controlled falsification test
+4. Minimal reference implementation (PNKIF) - not universally superior, just a
+   vehicle for studying contextual effects
+5. Negative results on deep extensions - peer normalization matters, depth doesn't
+```
+
+#### 2. New Subsection: Scope and Non-Claims
+
+```latex
+\subsection{Scope and Non-Claims}
+
+This paper deliberately limits its scope:
+\begin{itemize}
+    \item We do not claim contextual detection is universally superior
+    \item We do not claim PNKIF outperforms deep/learned models
+    \item We do not model complex conditional distributions where context
+          alters distributional shape
+\end{itemize}
+
+We focus on the most common form of contextual dependence: location-scale
+shifts where context primarily affects behavioral mean and variance.
+```
+
+#### 3. Injection Justification (CRITICAL)
+
+```latex
+\subsection{Why Controlled Injection Is Necessary}
+
+Evaluating contextual anomaly detection presents a fundamental challenge:
+public benchmarks overwhelmingly contain global anomalies.
+
+In such datasets, contextual methods cannot demonstrate their defining
+capability. Naive evaluation misleadingly suggests context provides no benefit.
+
+To isolate the statistical property of interest---conditional deviation given
+context---we use controlled, domain-grounded injection satisfying:
+\begin{enumerate}
+    \item \textbf{Normal globally:} injected behaviors are drawn from real
+          samples within the global distribution
+    \item \textbf{Abnormal conditionally:} the same behaviors violate
+          expectations relative to their assigned context
+\end{enumerate}
+
+Injection functions as a controlled falsification test, analogous to
+stress-testing a model under known violations.
+```
+
+#### 4. PNKIF Positioning
+
+```latex
+PNKIF is not proposed as a novel anomaly detection paradigm. It serves as a
+minimal, interpretable reference implementation designed to isolate the effect
+of peer-based normalization.
+
+By deliberately avoiding learned representations and end-to-end optimization,
+PNKIF ensures observed performance differences can be attributed to contextual
+normalization, not representational capacity.
+```
+
+#### 5. Diagnostic Framework Elevation
+
+```latex
+\subsection{Contextual Detection as a Diagnostic Signal}
+
+A key finding is that agreement/disagreement between global and contextual
+detectors is itself informative:
+
+\begin{itemize}
+    \item Agreement at high scores: global anomalies; context adds little
+    \item Contextual-only detection: behavior common globally but anomalous
+          for peer group
+    \item Widespread disagreement: dataset contains contextual structure
+\end{itemize}
+
+This suggests a practical workflow: run IF alongside PNKIF. Divergence signals
+context-aware modeling is warranted; agreement indicates global detection suffices.
+```
+
+#### 6. PNKDIF as Honest Negative Result
+
+```latex
+\subsection{On the Role of Random Projections}
+
+We evaluated a deep variant (PNKDIF) incorporating frozen random neural
+projections. Results were mixed:
+\begin{itemize}
+    \item Marginal benefit at high contamination ($>$5\%) on geographic swap
+    \item Inconsistent or degraded performance in other scenarios
+\end{itemize}
+
+This suggests peer normalization alone captures the dominant contextual signal.
+Additional representational complexity offers limited benefit. We emphasize
+PNKIF for its simplicity and interpretability.
+```
+
+### New Experiments to Add
+
+1. **Negative control for injection**
+   - Random injection (shuffle labels randomly)
+   - Show PNKIF does NOT benefit from random injection
+   - Proves we're detecting injection mechanism, not bias
+
+2. **Agreement rate analysis**
+   - Plot: Agreement rate vs injection rate
+   - Show monotonic decrease as contextual anomalies increase
+   - Formalize as diagnostic statistic
+
+3. **Precision@k analysis** (optional)
+   - Show IF vs PNKIF flag different accounts
+   - Rank correlation between methods
+   - Practical relevance for alert triage
+
+### Implementation Order
+
+1. [ ] Write new contribution section
+2. [ ] Write "Scope and Non-Claims" subsection
+3. [ ] Rewrite injection justification
+4. [ ] Rewrite PNKIF positioning paragraph
+5. [ ] Expand diagnostic framework in discussion
+6. [ ] Reframe PNKDIF as limited/negative result
+7. [ ] Add AUROC limitations paragraph
+8. [ ] Move method details to appendix
+9. [ ] Run negative control experiment (random injection)
+10. [ ] Add agreement rate vs injection rate plot
+11. [ ] Final polish and formatting
+
+### Target Venues (Journal)
+
+| Venue | Fit | Notes |
+|-------|-----|-------|
+| Expert Systems with Applications | High | Applied ML, allows longer papers |
+| Knowledge-Based Systems | High | Empirical studies welcome |
+| IEEE TKDE | Medium | Need stronger theoretical contribution |
+| Journal of Financial Crime | High | Practitioner focus, AML domain |
+| Pattern Recognition | Medium | Strong empirical papers accepted |
+
+### Files to Create/Modify
+
+- `notes/workshop_paper/main.tex` → Expand to journal version
+- `notes/workshop_paper/appendix.tex` → Create for method details
+- `scripts/run_negative_control.py` → Random injection experiment
+- `scripts/run_agreement_analysis.py` → Diagnostic formalization
+
+### Success Criteria
+
+Paper survives Reviewer #2 by:
+1. Clearly identifying as empirical study, not method paper
+2. Justifying injection with controlled falsification framing
+3. Owning limitations explicitly
+4. Elevating diagnostic framework as main contribution
+5. Framing PNKDIF honestly as mixed/negative result

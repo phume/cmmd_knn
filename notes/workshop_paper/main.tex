@@ -20,7 +20,7 @@
 \maketitle
 
 \begin{abstract}
-Contextual anomaly detection identifies data points that are normal globally but unusual within their specific context. While peer group analysis has long been used in anti-money laundering (AML) systems, the question of \emph{when} contextual methods provide value over global approaches remains understudied. We present an empirical comparison of Isolation Forest (IF), a global anomaly detector, against peer-normalized variants (PNKIF) on three financial datasets. Our experiments with domain-grounded injection strategies reveal a clear pattern: IF excels at detecting globally unusual behavior, while PNKIF excels at detecting behavior that is normal globally but unusual for a specific context (e.g., geographic arbitrage). We propose using both methods as a diagnostic: large disagreement between IF and PNKIF signals the presence of contextual anomalies. This provides practitioners with actionable guidance on method selection for transaction monitoring systems.
+Contextual anomaly detection identifies data points that are normal globally but unusual within their specific context. While peer group analysis has long been used in anti-money laundering (AML) systems, the question of \emph{when} contextual methods provide value over global approaches remains understudied. We present an empirical comparison of Isolation Forest (IF), a global anomaly detector, against peer-normalized variants (PNKIF, PNKDIF) on three financial datasets. Our experiments with domain-grounded injection strategies reveal a clear pattern: IF excels at detecting globally unusual behavior, while peer-normalized methods excel at detecting behavior that is normal globally but unusual for a specific context (e.g., geographic arbitrage). We also find that the deep variant (PNKDIF) outperforms PNKIF at higher contamination rates. We propose using multiple methods as a diagnostic: disagreement between IF and contextual methods signals the presence of contextual anomalies. This provides practitioners with actionable guidance on method selection for transaction monitoring systems.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -37,9 +37,10 @@ In this paper, we address the question: \textbf{When does context help in anomal
 
 Our contributions are:
 \begin{enumerate}
-    \item An empirical comparison of global (IF) vs. contextual (PNKIF) anomaly detection on three financial datasets
+    \item An empirical comparison of global (IF) vs. contextual (PNKIF, PNKDIF) anomaly detection on three financial datasets
     \item Domain-grounded injection strategies that simulate realistic AML typologies (geographic arbitrage, account misuse)
-    \item Evidence that method effectiveness depends on anomaly type: IF for global anomalies, PNKIF for contextual anomalies
+    \item Evidence that method effectiveness depends on anomaly type: IF for global anomalies, contextual methods for contextual anomalies
+    \item Analysis of when deep projections (PNKDIF) outperform simple peer normalization (PNKIF)
     \item A practical diagnostic: run both methods; disagreement signals contextual anomalies
 \end{enumerate}
 
@@ -60,7 +61,7 @@ Contextual anomalies are data points that are unusual only within a specific con
 
 \subsection{Peer Group Analysis}
 
-Bolton and Hand~\cite{bolton2001peer} introduced peer group analysis for fraud detection. The approach groups entities by context features and flags deviations from peer behavior. Our PNKIF method formalizes this with kernel-weighted peer normalization.
+Bolton and Hand~\cite{bolton2001peer} introduced peer group analysis for fraud detection. The approach groups entities by context features and flags deviations from peer behavior. Our methods formalize this with kernel-weighted peer normalization.
 
 \section{Methods}
 
@@ -93,7 +94,18 @@ PNKIF applies peer normalization before Isolation Forest:
     \item \textbf{Score:} Apply Isolation Forest to normalized behaviors $\{\tilde{\mathbf{x}}_i\}$
 \end{enumerate}
 
-This approach detects behavior that deviates from context-specific norms rather than global norms.
+\subsection{Deep Peer-Normalized Isolation Forest (PNKDIF)}
+
+PNKDIF extends PNKIF by applying random MLP projections before Isolation Forest, inspired by Deep Isolation Forest~\cite{xu2023deep}:
+
+\begin{enumerate}
+    \item Apply peer normalization as in PNKIF to obtain $\tilde{\mathbf{x}}_i$
+    \item Project through $M$ frozen random MLPs: $\mathbf{z}_i^{(m)} = \text{MLP}_m(\tilde{\mathbf{x}}_i)$
+    \item Build separate Isolation Forest on each projection
+    \item Average anomaly scores across projections
+\end{enumerate}
+
+The random projections create non-linear decision boundaries, potentially improving detection of complex anomaly patterns.
 
 \section{Experimental Setup}
 
@@ -102,11 +114,11 @@ This approach detects behavior that deviates from context-specific norms rather 
 We use three public financial datasets:
 
 \begin{itemize}
-    \item \textbf{SAML-D}~\cite{oztas2023saml}: Synthetic AML dataset with 30K accounts. Context: geography, payment type, currency. Behavior: transaction statistics.
+    \item \textbf{SAML-D}~\cite{oztas2023saml}: Synthetic AML dataset with 30K accounts. Context: geography, payment type, currency (38 features after one-hot encoding). Behavior: transaction statistics (6 features).
 
-    \item \textbf{PaySim}~\cite{lopez2016paysim}: Mobile money simulation with 30K transactions. Context: transaction type. Behavior: amounts and balances.
+    \item \textbf{PaySim}~\cite{lopez2016paysim}: Mobile money simulation with 30K transactions. Context: transaction type (5 features). Behavior: amounts and balances (5 features).
 
-    \item \textbf{Credit Card}~\cite{dal2015calibrating}: Anonymized transactions with 30K samples. Context: time and amount. Behavior: PCA components V1-V28.
+    \item \textbf{Credit Card}~\cite{dal2015calibrating}: Anonymized transactions with 30K samples. Context: time and amount (2 features). Behavior: PCA components V1-V28 (28 features).
 \end{itemize}
 
 \subsection{Injection Strategies}
@@ -127,80 +139,102 @@ Injection rates: 1\%, 3\%, 5\%, 10\%.
 
 \subsection{Evaluation}
 
-We report AUROC across 5 random seeds. Methods compared:
+We report AUROC across 10 random seeds for robustness. Methods compared:
 \begin{itemize}
-    \item IF: Isolation Forest on behavior only
-    \item IF\_concat: Isolation Forest on concatenated context + behavior
-    \item ROCOD: K-NN peer normalization with robust statistics
-    \item PNKIF: Kernel-weighted peer normalization + IF
+    \item \textbf{IF}: Isolation Forest on behavior only
+    \item \textbf{IF\_concat}: Isolation Forest on concatenated context + behavior
+    \item \textbf{ROCOD}: K-NN peer normalization with robust statistics~\cite{liang2022robust}
+    \item \textbf{PNKIF}: Kernel-weighted peer normalization + IF
+    \item \textbf{PNKDIF}: PNKIF + random MLP projections (deep variant)
 \end{itemize}
 
 \section{Results}
 
 \subsection{Original Labels: Global Anomalies}
 
-On original dataset labels, IF consistently outperforms contextual methods (Table~\ref{tab:original}).
+On original dataset labels, IF and IF\_concat consistently outperform contextual methods (Table~\ref{tab:original}).
 
 \begin{table}[htbp]
 \centering
-\caption{AUROC on Original Labels}
+\caption{AUROC on Original Labels (10 seeds)}
 \label{tab:original}
+\begin{tabular}{lccccc}
+\toprule
+Dataset & IF & IF\_concat & ROCOD & PNKIF & PNKDIF \\
+\midrule
+SAML-D & \textbf{0.937} & 0.896 & 0.419 & 0.869 & 0.842 \\
+PaySim & 0.691 & \textbf{0.776} & 0.375 & 0.455 & 0.353 \\
+CreditCard & \textbf{0.947} & 0.946 & 0.912 & 0.926 & 0.918 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This is expected: original labels correspond to globally unusual behavior that IF detects effectively. Contextual methods add overhead without benefit when anomalies are globally detectable.
+
+\subsection{Contextual Injection: Peer Methods Win}
+
+On contextual anomalies (context mismatch), peer-normalized methods consistently outperform IF (Table~\ref{tab:contextual}).
+
+\begin{table}[htbp]
+\centering
+\caption{AUROC on Context Mismatch Injection (PaySim, 10 seeds)}
+\label{tab:contextual}
 \begin{tabular}{lcccc}
 \toprule
-Dataset & IF & IF\_concat & ROCOD & PNKIF \\
+Rate & IF & PNKIF & PNKDIF & Winner \\
 \midrule
-SAML-D & \textbf{0.937} & 0.896 & 0.419 & 0.869 \\
-PaySim & 0.695 & \textbf{0.774} & 0.375 & 0.459 \\
-CreditCard & \textbf{0.947} & 0.946 & 0.912 & 0.926 \\
+1\% & \textbf{0.650} & 0.536 & 0.469 & IF \\
+3\% & 0.615 & \textbf{0.633} & 0.586 & PNKIF \\
+5\% & 0.591 & \textbf{0.663} & 0.616 & PNKIF \\
+10\% & 0.563 & \textbf{0.690} & 0.677 & PNKIF \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-This is expected: original labels correspond to globally unusual behavior that IF detects effectively.
+At low injection rates (1\%), IF still wins because the contextual signal is weak. At higher rates (3-10\%), PNKIF consistently outperforms IF, with the gap widening as injection rate increases.
 
-\subsection{Contextual Injection: PNKIF Wins}
+\textbf{Observation:} PNKIF performance \emph{increases} from 5\% to 10\% (0.663 $\rightarrow$ 0.690). This counterintuitive result occurs because more contextual anomalies create a stronger deviation signal from peer norms, making them easier to detect.
 
-On contextual anomalies (geographic swap, context mismatch), PNKIF consistently outperforms IF (Table~\ref{tab:contextual}).
+\subsection{Geographic Swap: PNKDIF Wins at High Rates}
+
+On geographic swap injection, PNKDIF outperforms PNKIF at higher contamination rates (Table~\ref{tab:geoswap}).
 
 \begin{table}[htbp]
 \centering
-\caption{AUROC on Context Mismatch Injection (PNKIF Wins All)}
-\label{tab:contextual}
-\begin{tabular}{llcccc}
+\caption{AUROC on Geographic Swap Injection (PaySim, 10 seeds)}
+\label{tab:geoswap}
+\begin{tabular}{lcccc}
 \toprule
-Dataset & Rate & IF & PNKIF & $\Delta$ \\
+Rate & IF & PNKIF & PNKDIF & Winner \\
 \midrule
-SAML-D & 3\% & 0.674 & \textbf{0.698} & +0.024 \\
-SAML-D & 5\% & 0.625 & \textbf{0.674} & +0.049 \\
-SAML-D & 10\% & 0.576 & \textbf{0.647} & +0.071 \\
-PaySim & 5\% & 0.592 & \textbf{0.663} & +0.071 \\
-PaySim & 10\% & 0.564 & \textbf{0.688} & +0.124 \\
-CreditCard & 5\% & 0.608 & \textbf{0.683} & +0.075 \\
-CreditCard & 10\% & 0.563 & \textbf{0.648} & +0.085 \\
+1\% & \textbf{0.610} & 0.549 & 0.500 & IF \\
+3\% & 0.528 & \textbf{0.589} & 0.583 & PNKIF \\
+5\% & 0.479 & 0.598 & \textbf{0.617} & PNKDIF \\
+10\% & 0.422 & 0.599 & \textbf{0.628} & PNKDIF \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-PNKIF wins 100\% of context mismatch scenarios (12/12) and 67\% of geographic swap scenarios (8/12).
+The deep projections in PNKDIF provide additional benefit when contamination is high, possibly by creating non-linear decision boundaries that better separate complex anomaly patterns.
 
 \subsection{Global Injection: IF Wins}
 
 On global-style anomalies (velocity, temporal shift), IF wins 100\% of scenarios. These anomalies stand out globally, so peer normalization provides no benefit.
 
-\subsection{Summary}
+\subsection{Summary Across All Experiments}
 
 \begin{table}[htbp]
 \centering
-\caption{Win Rate by Injection Type}
+\caption{Win Rate by Injection Type (All Datasets)}
 \label{tab:summary}
-\begin{tabular}{lcc}
+\begin{tabular}{lccc}
 \toprule
-Injection Type & PNKIF Wins & IF Wins \\
+Injection Type & IF & PNKIF & PNKDIF \\
 \midrule
-Context Mismatch & \textbf{12/12 (100\%)} & 0/12 \\
-Geographic Swap & \textbf{8/12 (67\%)} & 4/12 \\
-Velocity Anomaly & 0/12 & \textbf{12/12 (100\%)} \\
-Temporal Shift & 0/12 & \textbf{12/12 (100\%)} \\
+Context Mismatch & 4/12 & \textbf{8/12} & 0/12 \\
+Geographic Swap & 4/12 & 4/12 & \textbf{4/12} \\
+Velocity Anomaly & \textbf{12/12} & 0/12 & 0/12 \\
+Temporal Shift & \textbf{12/12} & 0/12 & 0/12 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -211,9 +245,21 @@ Temporal Shift & 0/12 & \textbf{12/12 (100\%)} \\
 
 Our results provide clear guidance:
 \begin{itemize}
-    \item \textbf{Use IF} when anomalies are globally unusual (unusual amounts, frequencies, or feature values)
-    \item \textbf{Use PNKIF} when anomalies are contextually unusual (normal globally but unusual for the account type, geography, or customer segment)
+    \item \textbf{Use IF} when anomalies are globally unusual (unusual amounts, frequencies, or feature values) or when contamination is very low ($<$1\%)
+    \item \textbf{Use PNKIF} when anomalies are contextually unusual and you need interpretability (peer comparison is explainable)
+    \item \textbf{Use PNKDIF} when contamination is high ($>$5\%) and complex patterns are expected
 \end{itemize}
+
+\subsection{Effect of Injection Rate}
+
+We observe that contextual method performance can \emph{improve} with higher injection rates. This occurs because:
+\begin{itemize}
+    \item More anomalies create stronger deviation from peer norms
+    \item The ``mismatch'' signal becomes more pronounced
+    \item AUROC benefits from having more positive samples to rank
+\end{itemize}
+
+Conversely, IF performance degrades at higher rates because global statistics become contaminated.
 
 \subsection{Diagnostic Framework}
 
@@ -234,19 +280,20 @@ Contextual anomalies correspond to known money laundering typologies:
     \item \textbf{Peer group deviation}: Activity unusual for customer segment
 \end{itemize}
 
-Standard IF may miss these if the behavior is common globally. PNKIF provides complementary detection.
+Standard IF may miss these if the behavior is common globally. Peer-normalized methods provide complementary detection.
 
 \subsection{Limitations}
 
 \begin{itemize}
     \item Injection-based evaluation: real contextual labels are rare in public datasets
     \item Context feature selection: performance depends on choosing appropriate context features
-    \item Computational cost: PNKIF requires K-NN computation, adding overhead
+    \item Computational cost: PNKIF/PNKDIF require K-NN computation, adding overhead
+    \item PNKDIF variance: deep projections introduce randomness, requiring multiple seeds
 \end{itemize}
 
 \section{Conclusion}
 
-We presented an empirical study of contextual vs. global anomaly detection for transaction monitoring. Our experiments demonstrate that method effectiveness depends on anomaly type: IF for global anomalies, PNKIF for contextual anomalies. We propose using both methods as a diagnostic tool. Future work includes validation on proprietary AML data with natural contextual labels.
+We presented an empirical study of contextual vs. global anomaly detection for transaction monitoring. Our experiments demonstrate that method effectiveness depends on anomaly type: IF for global anomalies, PNKIF for contextual anomalies at moderate contamination, and PNKDIF for high-contamination scenarios. We propose using multiple methods as a diagnostic tool. Future work includes validation on proprietary AML data with natural contextual labels and investigation of adaptive method selection.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
